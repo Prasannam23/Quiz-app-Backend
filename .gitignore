@@ -28,3 +28,5 @@ Thumbs.db
 
 # Optional: coverage reports
 coverage/
+
+/src/generated/prisma
