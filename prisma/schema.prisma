@@ -1,4 +1,3 @@
-
 generator client {
   provider = "prisma-client-js"
   output   = "../src/generated/prisma"
@@ -8,9 +7,80 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  createdAt DateTime @default(now())
+  id         String    @id @default(cuid())
+  email      String    @unique
+  password   String?   // For email/password login; optional for Google login
+  googleId   String?   @unique // OAuth login via Google
+
+  firstName  String?
+  lastName   String?
+  avatar     String?   // URL to profile picture
+  phone      String?   @unique
+  address    String?   // Optional address
+
+  createdAt  DateTime  @default(now())
+
+  // Relations
+  quizzes    Quiz[]    // One-to-many: One user can create many quizzes
+  attempts   Attempt[] // One-to-many: One user can attempt many quizzes
+}
+
+model Quiz {
+  id         String     @id @default(cuid())
+  title      String
+  slug       String     @unique // URL-friendly identifier
+
+  ownerId    String
+  owner      User       @relation(fields: [ownerId], references: [id]) // Many quizzes belong to one user
+
+  questions  Question[] // One-to-many: Quiz has many questions
+  attempts   Attempt[]  // One-to-many: Quiz can have many attempts
+
+  maxScore   Int        // Total score for all questions
+  createdAt  DateTime   @default(now())
+}
+
+model Question {
+  id          String    @id @default(cuid())
+  question    String
+  options     String[]  // Exactly 4 options per question
+  answerIndex Int       // Correct answer index (0–3)
+  marks       Int       // Marks awarded for correct answer
+  timeLimit   Int       // Time limit in seconds per question
+
+  quizId      String
+  quiz        Quiz      @relation(fields: [quizId], references: [id]) // Many questions belong to one quiz
+
+  answers     Answer[]  // One-to-many: A question may have many answers in different attempts
+}
+
+model Attempt {
+  id          String     @id @default(cuid())
+
+  userId      String
+  quizId      String
+  score       Int        // Total score earned in the attempt
+  startedAt   DateTime
+  completedAt DateTime
+
+  user        User       @relation(fields: [userId], references: [id]) // Each attempt is made by one user
+  quiz        Quiz       @relation(fields: [quizId], references: [id]) // Each attempt belongs to one quiz
+
+  answers     Answer[]   // One-to-many: Each attempt has multiple answers
+}
+
+model Answer {
+  id           String     @id @default(cuid())
+
+  attemptId    String
+  questionId   String
+  selected     Int        // Index of the selected option (0–3)
+  isCorrect    Boolean
+  timeTaken    Int        // Seconds taken to answer
+  marksScored  Int        // Score earned for this answer
+
+  attempt      Attempt    @relation(fields: [attemptId], references: [id]) // Belongs to one attempt
+  question     Question   @relation(fields: [questionId], references: [id]) // Belongs to one question
 }
