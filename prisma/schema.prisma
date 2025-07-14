@@ -7,13 +7,19 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+enum Role {
+  STUDENT
+  TEACHER
+  ADMIN
+  SUPERADMIN
+}
 
 model User {
   id         String    @id @default(cuid())
   email      String    @unique
   password   String?   // For email/password login; optional for Google login
   googleId   String?   @unique // OAuth login via Google
-
+  role       Role     @default(STUDENT)  
   firstName  String?
   lastName   String?
   avatar     String?   // URL to profile picture

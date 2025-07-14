@@ -5,10 +5,10 @@ import { generateToken } from '../util/jwt';
 
 export const register = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { email, password } = req.body;
+    const { email, password, role } = req.body;
 
-    if (!email || !password) {
-      res.status(400).json({ error: 'Email and password are required' });
+    if (!email || !password || !role) {
+      res.status(400).json({ error: 'Email, password, and role are required' });
       return;
     }
 
@@ -20,14 +20,14 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
     const hashed = await hashPassword(password);
     const user = await prisma.user.create({
-      data: { email, password: hashed },
+      data: { email, password: hashed, role },
     });
 
-    const token = generateToken(user.id);
+    const token = generateToken({ id: user.id, role: user.role });
     res.cookie('token', token, { httpOnly: true });
-    res.status(201).json({ 
-      message: 'Registered successfully', 
-      user: { id: user.id, email: user.email } 
+    res.status(201).json({
+      message: 'Registered successfully',
+      user: { id: user.id, email: user.email, role: user.role },
     });
   } catch (error) {
     console.error('Register error:', error);
@@ -38,9 +38,10 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 export const login = async (req: Request, res: Response): Promise<void> => {
   try {
     const { email, password } = req.body;
+    const roleParam = req.query.role as string;
 
-    if (!email || !password) {
-      res.status(400).json({ error: 'Email and password are required' });
+    if (!email || !password || !roleParam) {
+      res.status(400).json({ error: 'Email, password, and role are required' });
       return;
     }
 
@@ -56,11 +57,17 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const token = generateToken(user.id);
+    // ✅ Enforce login to correct portal
+    if (user.role !== roleParam.toUpperCase()) {
+      res.status(403).json({ error: `Access denied for ${roleParam} portal` });
+      return;
+    }
+
+    const token = generateToken({ id: user.id, role: user.role });
     res.cookie('token', token, { httpOnly: true });
-    res.status(200).json({ 
-      message: 'Login successful', 
-      user: { id: user.id, email: user.email } 
+    res.status(200).json({
+      message: 'Login successful',
+      user: { id: user.id, email: user.email, role: user.role },
     });
   } catch (error) {
     console.error('Login error:', error);
