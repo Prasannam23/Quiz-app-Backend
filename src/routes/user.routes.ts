@@ -2,15 +2,34 @@ import { Router, Request, Response } from 'express';
 import { verifyToken } from '../middlewares/auth.middleware';
 import prisma from '../config/db';
 
+// If you've defined a global type for req.user (recommended), this can be omitted.
+interface JwtUserPayload {
+  id: string;
+  role: string;
+}
+
 const router = Router();
 
 router.get('/me', verifyToken, async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = (req as any).user.id;
-    
+    const userId = (req.user as JwtUserPayload)?.id;
+
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized: No user info found in token' });
+      return;
+    }
+
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, email: true, role: true, createdAt: true }
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        firstName: true,
+        lastName: true,
+        avatar: true,
+        createdAt: true
+      }
     });
 
     if (!user) {
@@ -18,9 +37,9 @@ router.get('/me', verifyToken, async (req: Request, res: Response): Promise<void
       return;
     }
 
-    res.json({ 
-      message: 'You are authenticated', 
-      user 
+    res.status(200).json({
+      message: 'You are authenticated',
+      user
     });
   } catch (error) {
     console.error('Get user error:', error);
