@@ -1,4 +1,3 @@
-// src/strategies/google.ts
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import prisma from '../../config/db';
@@ -25,7 +24,7 @@ passport.use(
               email,
               googleId: profile.id,
               avatar,
-              role: 'STUDENT', // default role
+              role: 'STUDENT', 
             },
           });
         }
