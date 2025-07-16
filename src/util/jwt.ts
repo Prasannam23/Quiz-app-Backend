@@ -7,5 +7,6 @@ export const generateToken = (payload: { id: string; role: string }): string => 
 };
 
 export const verifyToken = (token: string) => {
+  console.log(SECRET)
   return jwt.verify(token, SECRET);
 };

@@ -1,7 +1,15 @@
-import { Request, Response } from 'express';
+
+import { Request, Response, CookieOptions } from 'express';
 import prisma from '../config/db';
 import { hashPassword, comparePassword } from '../util/hash';
 import { generateToken } from '../util/jwt';
+
+const COOKIE_OPTIONS: CookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax',
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+};
 
 export const register = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -24,7 +32,10 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     });
 
     const token = generateToken({ id: user.id, role: user.role });
-    res.cookie('token', token, { httpOnly: true });
+
+   
+    res.cookie('token', token, COOKIE_OPTIONS);
+
     res.status(201).json({
       message: 'Registered successfully',
       user: { id: user.id, email: user.email, role: user.role },
@@ -57,14 +68,16 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // ✅ Enforce login to correct portal
     if (user.role !== roleParam.toUpperCase()) {
       res.status(403).json({ error: `Access denied for ${roleParam} portal` });
       return;
     }
 
     const token = generateToken({ id: user.id, role: user.role });
-    res.cookie('token', token, { httpOnly: true });
+
+    // ✅ Set cookie with token
+    res.cookie('token', token, COOKIE_OPTIONS);
+
     res.status(200).json({
       message: 'Login successful',
       user: { id: user.id, email: user.email, role: user.role },
