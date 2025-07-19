@@ -36,30 +36,31 @@ model User {
 model Quiz {
   id         String     @id @default(cuid())
   title      String
-  slug       String     @unique // URL-friendly identifier
+  slug       String     @unique
+  joinCode   String     @unique // Students join using this code ✅
 
   ownerId    String
-  owner      User       @relation(fields: [ownerId], references: [id]) // Many quizzes belong to one user
+  owner      User       @relation(fields: [ownerId], references: [id])
 
-  questions  Question[] // One-to-many: Quiz has many questions
-  attempts   Attempt[]  // One-to-many: Quiz can have many attempts
+  questions  Question[]
+  attempts   Attempt[]
 
-  maxScore   Int        // Total score for all questions
+  maxScore   Int
   createdAt  DateTime   @default(now())
 }
 
 model Question {
   id          String    @id @default(cuid())
   question    String
-  options     String[]  // Exactly 4 options per question
-  answerIndex Int       // Correct answer index (0–3)
-  marks       Int       // Marks awarded for correct answer
-  timeLimit   Int       // Time limit in seconds per question
+  options     String[]  
+  answerIndex Int       
+  marks       Int       
+  timeLimit   Int       
 
   quizId      String
-  quiz        Quiz      @relation(fields: [quizId], references: [id]) // Many questions belong to one quiz
+  quiz        Quiz      @relation(fields: [quizId], references: [id]) 
 
-  answers     Answer[]  // One-to-many: A question may have many answers in different attempts
+  answers     Answer[]  
 }
 
 model Attempt {

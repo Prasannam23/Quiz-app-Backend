@@ -1,32 +1,30 @@
+// src/app.ts
 import express, { Request, Response } from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import session from 'express-session';
 import passport from 'passport';
+import prisma from './config/db';
+import http from 'http';
 
-// ✅ Init Google strategy early
-import '../src/google/strategies/google';
-
-// Routes
+import { createWebSocketServer } from './websocket/ws.server';
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
 import googleAuthRoutes from './routes/google.auth.routes';
 
-// Prisma
-import prisma from './config/db';
+import './google/strategies/google';
 
 dotenv.config();
 
 const app = express();
+const server = http.createServer(app); 
 
-// ✅ CORS
+
 app.use(cors({
   origin: 'http://localhost:3000',
   credentials: true,
 }));
-
-// ✅ Middleware
 app.use(express.json());
 app.use(cookieParser());
 app.use(session({
@@ -37,26 +35,26 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// ✅ Passport serialize/deserialize
+// ✅ Passport session handlers
 passport.serializeUser((user: any, done) => done(null, user.id));
 passport.deserializeUser(async (id: string, done) => {
-  const user = await prisma.user.findUnique({ where: { id } });
-  done(null, user);
+  try {
+    const user = await prisma.user.findUnique({ where: { id } });
+    done(null, user);
+  } catch (err) {
+    done(err, null);
+  }
 });
 
-// ✅ Routes
+
 app.get('/', (_req: Request, res: Response) => {
-  res.send('🚀 Quiz App Backend is running');
+  res.send('🧠 Quiz App Backend is running!');
 });
-
 app.use('/api/auth', authRoutes);
 app.use('/api/auth', googleAuthRoutes);
 app.use('/api/user', userRoutes);
 
-// ✅ Server
-const PORT = process.env.PORT || 8000;
-app.listen(PORT, () => {
-  console.log(`🟢 Server running at http://localhost:${PORT}`);
-});
 
-export default app;
+createWebSocketServer(server);
+
+export { app, server };
