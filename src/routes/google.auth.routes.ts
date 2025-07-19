@@ -10,10 +10,10 @@ const COOKIE_OPTIONS: CookieOptions = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
   sameSite: 'lax',
-  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  maxAge: 7 * 24 * 60 * 60 * 1000, 
 };
 
-// Redirect to Google for OAuth
+
 router.get('/google', passport.authenticate('google', {
   scope: ['profile', 'email'],
 }));
@@ -32,7 +32,7 @@ router.get(
     if (!user) {
       return res.redirect('http://localhost:3000/login?error=OAuthFailed');
     }
-    console.log("////////////1")
+   
 
     const token = generateToken({ id: user.id, role: user.role });
     res.cookie('token', token, COOKIE_OPTIONS);
