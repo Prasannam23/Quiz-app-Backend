@@ -12,6 +12,7 @@ import { createWebSocketServer } from './websocket/ws.server';
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
 import googleAuthRoutes from './routes/google.auth.routes';
+import quizRoutes from './routes/quiz.routes';
 
 import './google/strategies/google';
 
@@ -53,6 +54,7 @@ app.get('/', (_req: Request, res: Response) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/auth', googleAuthRoutes);
 app.use('/api/user', userRoutes);
+app.use('/api/quiz', quizRoutes);
 
 
 createWebSocketServer(server);
