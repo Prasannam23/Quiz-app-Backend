@@ -56,10 +56,8 @@ model Question {
   answerIndex Int       
   marks       Int       
   timeLimit   Int       
-
   quizId      String
   quiz        Quiz      @relation(fields: [quizId], references: [id]) 
-
   answers     Answer[]  
 }
 

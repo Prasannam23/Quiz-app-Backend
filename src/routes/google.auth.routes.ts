@@ -14,9 +14,15 @@ const COOKIE_OPTIONS: CookieOptions = {
 };
 
 
-router.get('/google', passport.authenticate('google', {
-  scope: ['profile', 'email'],
-}));
+router.get('/google', (req, res, next) => {
+  const { role } = req.query;
+  const redirectUrl = `/api/auth/google/redirect?state=${role}`;
+  return passport.authenticate('google', {
+    scope: ['profile', 'email'],
+    state: role as string, 
+  })(req, res, next);
+});
+
 
 
 router.get(
