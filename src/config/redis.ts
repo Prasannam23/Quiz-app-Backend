@@ -12,7 +12,7 @@ export const redisSub = createClient({ url: redisUrl });
 
 [redisClient, redisPub, redisSub].forEach((client, idx) => {
   client.on('error', (err) => {
-    console.error(`❌ Redis Client ${idx} error:`, err);
+    console.error(` Redis Client ${idx} error:`, err);
   });
 
   client.on('connect', () => {
@@ -29,6 +29,6 @@ export const connectRedis = async () => {
     ]);
     console.log('🔗 All Redis clients connected');
   } catch (err) {
-    console.error('❌ Redis connection error:', err);
+    console.error(' Redis connection error:', err);
   }
 };
