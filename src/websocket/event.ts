@@ -1,5 +1,5 @@
 import { WebSocket } from "ws";
-import {redisClient} from "../config/redis";
+import { redisClient } from "../config/redis";
 import {
   WSMessage,
   JoinRoomPayload,
@@ -7,6 +7,9 @@ import {
   StartQuizPayload,
   ClientInfo,
 } from "./types";
+import { randomUUID } from "crypto"; 
+import { v4 as uuidv4 } from 'uuid';
+
 
 const clients = new Map<WebSocket, ClientInfo>();
 
@@ -27,7 +30,13 @@ export const handleMessage = async (socket: WebSocket, message: WSMessage) => {
 const handleJoinRoom = async (socket: WebSocket, payload: JoinRoomPayload) => {
   const { roomId, userId, isHost } = payload;
 
-  clients.set(socket, { socketId: socket.url || "", roomId, userId, isHost });
+  clients.set(socket, {
+    socket,
+    socketId: uuidv4(),
+    roomId,
+    userId,
+    isHost,
+  });
 
   await redisClient.sAdd(`room:${roomId}`, userId);
 

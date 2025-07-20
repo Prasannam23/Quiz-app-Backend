@@ -16,7 +16,7 @@ export const redisSub = createClient({ url: redisUrl });
   });
 
   client.on('connect', () => {
-    console.log(`✅ Redis Client ${idx} connected`);
+    console.log(` Redis Client ${idx} connected`);
   });
 });
 

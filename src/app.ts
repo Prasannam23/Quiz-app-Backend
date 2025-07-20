@@ -8,7 +8,7 @@ import passport from 'passport';
 import prisma from './config/db';
 import http from 'http';
 
-import { createWebSocketServer } from './websocket/ws.server';
+import  {startWebSocketServer}  from './websocket/ws.server';
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
 import googleAuthRoutes from './routes/google.auth.routes';
@@ -36,7 +36,7 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// ✅ Passport session handlers
+
 passport.serializeUser((user: any, done) => done(null, user.id));
 passport.deserializeUser(async (id: string, done) => {
   try {
@@ -46,7 +46,10 @@ passport.deserializeUser(async (id: string, done) => {
     done(err, null);
   }
 });
-
+setInterval(() => {
+  const used = process.memoryUsage().heapUsed / 1024 / 1024;
+  console.log(`[PID ${process.pid}] Memory usage: ${Math.round(used * 100) / 100} MB`);
+}, 10000);
 
 app.get('/', (_req: Request, res: Response) => {
   res.send('🧠 Quiz App Backend is running!');
@@ -57,6 +60,6 @@ app.use('/api/user', userRoutes);
 app.use('/api/quiz', quizRoutes);
 
 
-createWebSocketServer(server);
+startWebSocketServer(server);
 
 export { app, server };
