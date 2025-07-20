@@ -1,10 +1,11 @@
+import { WebSocket } from "ws"; 
 export interface ClientInfo {
-    socketId: string;
-    userId: string;
-    roomId: string;
-    isHost?: boolean;
-  }
-  
+  socketId: string;
+  userId: string;
+  roomId: string;
+  isHost?: boolean;
+  socket: WebSocket; 
+}
   export interface WSMessage {
     type: string;
     payload: any;

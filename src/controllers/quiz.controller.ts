@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '../config/db';
-import { nanoid } from 'nanoid'; // For generating unique joinCode
+import { nanoid } from 'nanoid'; 
 
 export const createQuiz = async (req: Request, res: Response): Promise<void> => {
   try {

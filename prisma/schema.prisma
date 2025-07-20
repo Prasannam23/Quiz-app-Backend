@@ -17,27 +17,26 @@ enum Role {
 model User {
   id         String    @id @default(cuid())
   email      String    @unique
-  password   String?   // For email/password login; optional for Google login
-  googleId   String?   @unique // OAuth login via Google
+  password   String?   
+  googleId   String?   @unique 
   role       Role     @default(STUDENT)  
   firstName  String?
   lastName   String?
-  avatar     String?   // URL to profile picture
+  avatar     String?   
   phone      String?   @unique
-  address    String?   // Optional address
-
+  address    String?   
   createdAt  DateTime  @default(now())
 
-  // Relations
-  quizzes    Quiz[]    // One-to-many: One user can create many quizzes
-  attempts   Attempt[] // One-to-many: One user can attempt many quizzes
+  
+  quizzes    Quiz[]    
+  attempts   Attempt[] 
 }
 
 model Quiz {
   id         String     @id @default(cuid())
   title      String
   slug       String     @unique
-  joinCode   String     @unique // Students join using this code ✅
+  joinCode   String     @unique 
 
   ownerId    String
   owner      User       @relation(fields: [ownerId], references: [id])
@@ -66,14 +65,16 @@ model Attempt {
 
   userId      String
   quizId      String
-  score       Int        // Total score earned in the attempt
+  score       Int       
   startedAt   DateTime
   completedAt DateTime
+  roomId String? 
+  user        User       @relation(fields: [userId], references: [id]) 
+  quiz        Quiz       @relation(fields: [quizId], references: [id]) 
 
-  user        User       @relation(fields: [userId], references: [id]) // Each attempt is made by one user
-  quiz        Quiz       @relation(fields: [quizId], references: [id]) // Each attempt belongs to one quiz
-
-  answers     Answer[]   // One-to-many: Each attempt has multiple answers
+  answers     Answer[]  
+  questionStartedAt DateTime?
+  answeredAt        DateTime?  
 }
 
 model Answer {
@@ -81,11 +82,11 @@ model Answer {
 
   attemptId    String
   questionId   String
-  selected     Int        // Index of the selected option (0–3)
+  selected     Int       
   isCorrect    Boolean
-  timeTaken    Int        // Seconds taken to answer
-  marksScored  Int        // Score earned for this answer
+  timeTaken    Int        
+  marksScored  Int        
 
-  attempt      Attempt    @relation(fields: [attemptId], references: [id]) // Belongs to one attempt
-  question     Question   @relation(fields: [questionId], references: [id]) // Belongs to one question
+  attempt      Attempt    @relation(fields: [attemptId], references: [id]) 
+  question     Question   @relation(fields: [questionId], references: [id]) 
 }

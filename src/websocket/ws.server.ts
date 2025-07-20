@@ -1,46 +1,75 @@
-import WebSocket, { Server } from 'ws';
-import { IncomingMessage } from 'http';
+// src/websocket/ws.server.ts
+
 import { Server as HTTPServer } from 'http';
-import { redisSub } from '../config/redis';
+import WebSocket from 'ws';
+import { WSMessage, ClientInfo, JoinRoomPayload, AnswerPayload, StartQuizPayload } from './types';
+import {
+  addClient,
+  removeClient,
+  broadcastToRoom,
+  getClientBySocketId,
+  clients
+} from './ws.utils';
 
-const clients = new Map<string, WebSocket>();
+export const startWebSocketServer = (server: HTTPServer) => {
+  const wss = new WebSocket.Server({ server });
 
-export function createWebSocketServer(server: HTTPServer) {
-  const wss = new Server({ server });
+  wss.on('connection', (socket) => {
+    const socketId = crypto.randomUUID();
 
-  wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
-    const url = req.url || '';
-    const host = req.headers.host || 'localhost';
-    const userId = new URL(url, `http://${host}`).searchParams.get('userId');
+    console.log('🟢 New WebSocket connection:', socketId);
 
-    if (!userId) {
-      ws.close();
-      return;
-    }
+    socket.on('message', (data) => {
+      try {
+        const message: WSMessage = JSON.parse(data.toString());
 
-    clients.set(userId, ws);
+        switch (message.type) {
+          case 'JOIN_ROOM': {
+            const payload = message.payload as JoinRoomPayload;
+            const client: ClientInfo = {
+              socketId,
+              userId: payload.userId,
+              roomId: payload.roomId,
+              isHost: payload.isHost,
+              socket,
+            };
+            addClient(client);
 
-    ws.on('message', (message: string) => {
-      console.log(`📩 Received from ${userId}: ${message}`);
-    });
+            console.log(`👤 User ${payload.userId} joined room ${payload.roomId}`);
+            break;
+          }
 
-    ws.on('close', () => {
-      clients.delete(userId);
-      console.log(` Connection closed: ${userId}`);
-    });
-  });
+          case 'START_QUIZ': {
+            const payload = message.payload as StartQuizPayload;
+            console.log('🚀 Starting quiz in room:', payload.roomId);
 
- 
-  redisSub.subscribe('quiz-channel', (message, channel) => {
-    console.log(`📨 Redis message on ${channel}: ${message}`);
+            broadcastToRoom(payload.roomId, {
+              type: 'QUESTION',
+              payload: payload.quizData[0], // Send first question
+            });
+            break;
+          }
 
-    
-    clients.forEach((ws) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(message);
+          case 'ANSWER': {
+            const payload = message.payload as AnswerPayload;
+            console.log(`📝 Answer from ${payload.userId}: ${payload.answer}`);
+            
+            break;
+          }
+
+          default:
+            console.warn(' Unknown message type:', message.type);
+        }
+      } catch (err) {
+        console.error('Failed to handle message:', err);
       }
     });
+
+    socket.on('close', () => {
+      console.log(' WebSocket disconnected:', socketId);
+      removeClient(socketId);
+    });
   });
 
-  console.log('WebSocket server initialized');
-}
+  console.log(' WebSocket server running...');
+};
