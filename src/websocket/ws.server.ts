@@ -1,5 +1,3 @@
-// src/websocket/ws.server.ts
-
 import { Server as HTTPServer } from 'http';
 import WebSocket from 'ws';
 import { WSMessage, ClientInfo, JoinRoomPayload, AnswerPayload, StartQuizPayload } from './types';
@@ -17,7 +15,7 @@ export const startWebSocketServer = (server: HTTPServer) => {
   wss.on('connection', (socket) => {
     const socketId = crypto.randomUUID();
 
-    console.log('🟢 New WebSocket connection:', socketId);
+    console.log(' New WebSocket connection:', socketId);
 
     socket.on('message', (data) => {
       try {
@@ -41,18 +39,18 @@ export const startWebSocketServer = (server: HTTPServer) => {
 
           case 'START_QUIZ': {
             const payload = message.payload as StartQuizPayload;
-            console.log('🚀 Starting quiz in room:', payload.roomId);
+            console.log(' Starting quiz in room:', payload.roomId);
 
             broadcastToRoom(payload.roomId, {
               type: 'QUESTION',
-              payload: payload.quizData[0], // Send first question
+              payload: payload.quizData[0], 
             });
             break;
           }
 
           case 'ANSWER': {
             const payload = message.payload as AnswerPayload;
-            console.log(`📝 Answer from ${payload.userId}: ${payload.answer}`);
+            console.log(` Answer from ${payload.userId}: ${payload.answer}`);
             
             break;
           }
@@ -64,7 +62,7 @@ export const startWebSocketServer = (server: HTTPServer) => {
         console.error('Failed to handle message:', err);
       }
     });
-
+    
     socket.on('close', () => {
       console.log(' WebSocket disconnected:', socketId);
       removeClient(socketId);

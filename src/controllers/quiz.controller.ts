@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '../config/db';
-import { nanoid } from 'nanoid'; 
+import { nanoid } from 'nanoid';
 
 export const createQuiz = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -12,7 +12,7 @@ export const createQuiz = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
-    const joinCode = nanoid(4).toString(); 
+    const joinCode = nanoid(4);
 
     const newQuiz = await prisma.quiz.create({
       data: {
