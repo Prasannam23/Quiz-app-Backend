@@ -1,3 +1,4 @@
+// src/controllers/quiz.controller.ts
 import { Request, Response } from 'express';
 import prisma from '../config/db';
 import { nanoid } from 'nanoid';
@@ -5,7 +6,7 @@ import { nanoid } from 'nanoid';
 export const createQuiz = async (req: Request, res: Response): Promise<void> => {
   try {
     const { title, maxScore, questions } = req.body;
-    const userId = (req as any).user.id;
+    const userId = (req as any).user?.id;
 
     if (!title || !Array.isArray(questions) || !maxScore) {
       res.status(400).json({ error: 'Missing quiz data' });
