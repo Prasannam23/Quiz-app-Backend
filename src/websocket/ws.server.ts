@@ -1,18 +1,22 @@
 import { Server as HTTPServer } from 'http';
 import WebSocket from 'ws';
-import { WSMessage, ClientInfo, JoinRoomPayload, AnswerPayload, StartQuizPayload } from './types';
+import { WSMessage, JoinRoomPayload, AnswerPayload, StartQuizPayload } from '../types/types';
 import {
-  addClient,
   removeClient,
   broadcastToRoom,
-  getClientBySocketId,
-  clients
 } from './ws.utils';
+import jwt from "jsonwebtoken";
+import { handleJoinRoom, sendUsers } from './ws.handlers';
 
 export const startWebSocketServer = (server: HTTPServer) => {
   const wss = new WebSocket.Server({ server });
 
-  wss.on('connection', (socket) => {
+  wss.on('connection', (socket, req) => {
+    const params = new URLSearchParams(req?.url?.split('/')[1]);
+    const token = params.get('token');
+    if(!token) return wss.close();
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!);
+    if(!decoded) return wss.close();
     const socketId = crypto.randomUUID();
 
     console.log(' New WebSocket connection:', socketId);
@@ -23,20 +27,10 @@ export const startWebSocketServer = (server: HTTPServer) => {
 
         switch (message.type) {
           case 'JOIN_ROOM': {
-            const payload = message.payload as JoinRoomPayload;
-            const client: ClientInfo = {
-              socketId,
-              userId: payload.userId,
-              roomId: payload.roomId,
-              isHost: payload.isHost,
-              socket,
-            };
-            addClient(client);
-
-            console.log(`👤 User ${payload.userId} joined room ${payload.roomId}`);
+            handleJoinRoom(socket, message.payload as JoinRoomPayload, socketId);
+            sendUsers(socket, (message.payload as JoinRoomPayload).roomId);
             break;
           }
-
           case 'START_QUIZ': {
             const payload = message.payload as StartQuizPayload;
             console.log(' Starting quiz in room:', payload.roomId);

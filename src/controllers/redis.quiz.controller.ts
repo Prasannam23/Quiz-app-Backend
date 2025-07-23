@@ -2,14 +2,14 @@ import { Request, Response } from "express";
 import { redisClient } from "../config/redis";
 import prisma from "../config/db";
 
-export const cacheQuizToRedis = async (req: Request, res: Response) => {
+export const cacheQuizToRedis = async (req: Request, res: Response): Promise<void> => {
   try {
     const { quizId } = req.params;
 
     
-    const cached = await redisClient.get(`quiz:${quizId}`);
+    const cached = await redisClient.get(`quizData:${quizId}`);
     if (cached) {
-      return res.status(200).json({ fromCache: true, data: JSON.parse(cached) });
+      res.status(200).json({ fromCache: true, data: JSON.parse(cached) });
     }
 
  
@@ -18,12 +18,19 @@ export const cacheQuizToRedis = async (req: Request, res: Response) => {
       include: { questions: true },
     });
 
-    if (!quiz) return res.status(404).json({ error: "Quiz not found" });
+    if (!quiz) res.status(404).json({ error: "Quiz not found" });
 
+    const time = quiz?.questions.reduce((acc, curr) => {
+      return acc+curr.timeLimit;
+    }, 0);
+
+    if(!time) {
+      throw Error("No questions in the current quiz");
+    }
    
-    await redisClient.set(`quiz:${quizId}`, JSON.stringify(quiz), { EX: 3600 }); // cache for 1hr
+    await redisClient.set(`quizData:${quizId}`, JSON.stringify(quiz), { EX: time + 600 });
 
-    return res.status(200).json({ fromCache: false, data: quiz });
+    res.status(200).json({ fromCache: false, data: quiz });
   } catch (err) {
     console.error("Redis cache error:", err);
     res.status(500).json({ error: "Internal server error" });

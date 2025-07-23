@@ -1,8 +1,7 @@
 import cluster from 'cluster';
 import os from 'os';
-import {server} from './app'; 
+import { initializeWorkerApp } from './app'; 
 
-const PORT = process.env.PORT || 8000;
 const numCPUs = os.cpus().length;
 
 if (cluster.isPrimary) {
@@ -19,7 +18,7 @@ if (cluster.isPrimary) {
   });
 
 } else {
-  server.listen(PORT, () => {
-    console.log(`Worker ${process.pid} running on http://localhost:${PORT}`);
+  initializeWorkerApp().catch(err => {
+    console.error(`Worker ${process.pid} failed to initialize:`, err);
   });
 }
