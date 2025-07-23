@@ -14,7 +14,7 @@ class LeaderBoardService implements ILeaderBoardService {
         this.pubsubChannelPrefix = pubsubChannelPrefix;
     }
 
-    async updateScore(userId: string, score: number): Promise<void> {
+    async addMember(userId: string, score: number): Promise<void> {
         await this.redisPub.zAdd(this.leaderBoardKey, { score, value: userId});
     }
 

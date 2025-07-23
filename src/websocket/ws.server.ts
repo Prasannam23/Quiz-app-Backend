@@ -3,10 +3,9 @@ import WebSocket from 'ws';
 import { WSMessage, JoinRoomPayload, AnswerPayload, StartQuizPayload } from '../types/types';
 import {
   removeClient,
-  broadcastToRoom,
 } from './ws.utils';
 import jwt from "jsonwebtoken";
-import { handleJoinRoom, sendUsers } from './ws.handlers';
+import { handleJoinRoom, handleStartQuiz, sendUsers } from './ws.handlers';
 
 export const startWebSocketServer = (server: HTTPServer) => {
   const wss = new WebSocket.Server({ server });
@@ -19,26 +18,21 @@ export const startWebSocketServer = (server: HTTPServer) => {
     if(!decoded) return wss.close();
     const socketId = crypto.randomUUID();
 
-    console.log(' New WebSocket connection:', socketId);
+    console.log('New WebSocket connection:', socketId);
 
-    socket.on('message', (data) => {
+    socket.on('message', async (data) => {
       try {
         const message: WSMessage = JSON.parse(data.toString());
 
         switch (message.type) {
           case 'JOIN_ROOM': {
             handleJoinRoom(socket, message.payload as JoinRoomPayload, socketId);
-            sendUsers(socket, (message.payload as JoinRoomPayload).roomId);
+            sendUsers(socket, (message.payload as JoinRoomPayload).quizId);
             break;
           }
-          case 'START_QUIZ': {
-            const payload = message.payload as StartQuizPayload;
-            console.log(' Starting quiz in room:', payload.roomId);
 
-            broadcastToRoom(payload.roomId, {
-              type: 'QUESTION',
-              payload: payload.quizData[0], 
-            });
+          case 'START_QUIZ': {
+            await handleStartQuiz(socket, message.payload as StartQuizPayload);
             break;
           }
 

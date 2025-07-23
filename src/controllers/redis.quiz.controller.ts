@@ -18,11 +18,23 @@ export const cacheQuizToRedis = async (req: Request, res: Response): Promise<voi
       include: { questions: true },
     });
 
-    if (!quiz) res.status(404).json({ error: "Quiz not found" });
+    if (!quiz) {
+      res.status(404).json({ error: "Quiz not found" });
+      return;
+    }
 
     const time = quiz?.questions.reduce((acc, curr) => {
       return acc+curr.timeLimit;
     }, 0);
+
+    const qs = [];
+
+    for(const q of quiz.questions) {
+      const q1 = {...q, status: "not_done"};
+      qs.push(q1);
+    }
+
+    quiz.questions = qs;
 
     if(!time) {
       throw Error("No questions in the current quiz");

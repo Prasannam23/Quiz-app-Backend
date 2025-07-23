@@ -8,11 +8,11 @@ if (cluster.isPrimary) {
   console.log(` Primary process ${process.pid} is running`);
   console.log(` Forking ${numCPUs} workers...\n`);
 
-  for (let i = 0; i < 1; i++) {
+  for (let i = 0; i < 2; i++) {
     cluster.fork();
   }
 
-  cluster.on('exit', (worker, code, signal) => {
+  cluster.on('exit', (worker,) => {
     console.log(` Worker ${worker.process.pid} died. Restarting...`);
     cluster.fork();
   });

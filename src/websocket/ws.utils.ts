@@ -3,15 +3,19 @@ import { RedisClientType } from 'redis';
 import { redisPub, redisSub } from '../config/redis';
 import LeaderBoardService from '../services/leaderboard.service';
 import { ClientInfo, Room, WSMessage } from '../types/types';
+import { QuestionService } from '../services/question.service';
 
 export const rooms = new Map<string, Room>();
 
-export const addClient = (client: ClientInfo, roomId: string, socketId: string) => {
+export const addClient = async (client: ClientInfo, roomId: string, socketId: string) => {
   if(!rooms.has(roomId)) {
+    const questionService = new QuestionService(redisPub as RedisClientType, roomId);
+    await questionService.init();
     const room: Room = {
       roomId,
       clients: new Map<string, ClientInfo>(),
-      leaderboardService: new LeaderBoardService(redisPub as RedisClientType, redisSub as RedisClientType, `leaderboard:${roomId}`, `pubsub:${roomId}`)
+      leaderboardService: new LeaderBoardService(redisPub as RedisClientType, redisSub as RedisClientType, `leaderboard:${roomId}`, `pubsub:${roomId}`),
+      questionService,
     }
     room.clients.set(socketId, client);
     rooms.set(roomId, room);
@@ -52,3 +56,28 @@ export const broadcastToRoom = (roomId: string, message: WSMessage) => {
     console.error(`Error ocurred while broadcasting to room, ${(error as Error).message}`);
   }
 };
+
+export const isHost = (roomId: string, userId: string) => {
+  const room = rooms.get(roomId);
+  if(!room) return false;
+  for(const [, val] of room.clients) {
+    if(userId==val.userId && val.isHost) return true;
+  }
+  return false;
+}
+
+export const startquiz = async (quizId: string) => {
+  const test = await rooms.get(quizId)?.questionService.addNewCurrentQuestion();
+  if(!test) {
+    return false;
+  }
+  await rooms.get(quizId)?.questionService.subscibeToExpiry();
+  return true;
+}
+
+export const clientSubscriptionToQuestion = (quizId: string) => {
+  rooms.get(quizId)?.questionService.subscribe((message) => {
+    const question = JSON.parse(message);
+    broadcastToRoom(quizId, question);
+  });
+}
