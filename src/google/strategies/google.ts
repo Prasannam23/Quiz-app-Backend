@@ -1,5 +1,5 @@
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
-import passport, { Profile } from 'passport';
+import passport from 'passport';
 import prisma from '../../config/db';
 import { Role } from '@prisma/client';
 
