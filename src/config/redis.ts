@@ -27,6 +27,8 @@ export const connectRedis = async () => {
       redisPub.connect(),
       redisSub.connect(),
     ]);
+    await redisPub.configSet('notify-keyspace-events', 'Ex');
+    console.log('✅ Redis keyspace notifications enabled for expired keys');
     console.log('🔗 All Redis clients connected');
   } catch (err) {
     console.error(' Redis connection error:', err);

@@ -1,30 +1,28 @@
 import { WebSocket } from "ws";
-import { redisClient } from "../config/redis";
 import {
   ClientInfo,
   JoinRoomPayload,
-  AnswerPayload,
   StartQuizPayload,
   UserPayload,
   WSMessage,
   sendUsersPayload
 } from "../types/types";
-import { addClient, broadcastToRoom, getClientsInRoom } from "./ws.utils";
+import { addClient, broadcastToRoom, clientSubscriptionToQuestion, startquiz } from "./ws.utils";
 import prisma from "../config/db";
 import { redisService } from "../services/redis.service";
 
 
 export const handleJoinRoom = async (socket: WebSocket, payload: JoinRoomPayload, socketId: string) => {
   try {
-    const { roomId, userId, isHost } = payload;
+    const { quizId, userId, isHost } = payload;
     const client: ClientInfo = {
       userId,
       isHost,
       socket,
     };
-    console.log(`👤 User ${payload.userId} joined room ${payload.roomId}`);
+    console.log(`👤 User ${payload.userId} joined room ${payload.quizId}`);
     
-    addClient(client, payload.roomId, socketId);
+    await addClient(client, quizId, socketId);
     
     const user = await prisma.user.findUnique({
       where: {
@@ -50,9 +48,9 @@ export const handleJoinRoom = async (socket: WebSocket, payload: JoinRoomPayload
       email: user.email,
     }
 
-    redisService.addUsertoRoom(data.id, roomId);
+    redisService.addUsertoRoom(data.id, quizId);
 
-    broadcastToRoom(roomId, {
+    broadcastToRoom(quizId, {
       type: "USER_JOINED",
       payload: data,
     });
@@ -75,42 +73,52 @@ export const sendUsers = async (socket: WebSocket, roomId: string): Promise<void
   socket.send(JSON.stringify(message));
 }
 
-const handleAnswer = async (socket: WebSocket, payload: AnswerPayload) => {
-  const { quizId, userId, answer } = payload;
+export const handleStartQuiz = async (socket: WebSocket, payload: StartQuizPayload) => {
+  const { quizId } = payload;
 
-  await redisClient.set(`quiz:${quizId}:answer:${userId}`, JSON.stringify(answer));
-
-  socket.send(
-    JSON.stringify({
-      type: "ANSWER_RECEIVED",
-      payload: { status: "ok" },
-    })
-  );
-};
-
-const handleStartQuiz = async (socket: WebSocket, payload: StartQuizPayload) => {
-  const { roomId, quizData } = payload;
-
-  await redisClient.set(`quiz:${roomId}:data`, JSON.stringify(quizData));
-
-  broadcastToRoom(roomId, {
+  broadcastToRoom(quizId, {
     type: "QUIZ_STARTED",
-    payload: quizData,
+    payload: null,
   });
+
+  clientSubscriptionToQuestion(quizId);
+
+  const test = await startquiz(quizId);
+  if(!test) {
+    const message: WSMessage = {
+      type: "ERROR",
+      payload: {
+        message: "Either Quiz not found or or it does not have any questions"
+      }
+    }
+    socket.send(JSON.stringify(message));
+  }
 };
 
+// export const handleAnswer = async (socket: WebSocket, payload: AnswerPayload) => {
+//   const { quizId, userId, answer } = payload;
 
-export const handleDisconnect = async (socket: WebSocket) => {
-  const info = clients.get(socket);
-  if (!info) return;
+//   await redisClient.set(`quiz:${quizId}:answer:${userId}`, JSON.stringify(answer));
 
-  const { roomId, userId } = info;
-  await redisClient.sRem(`room:${roomId}`, userId);
+//   socket.send(
+//     JSON.stringify({
+//       type: "ANSWER_RECEIVED",
+//       payload: { status: "ok" },
+//     })
+//   );
+// };
 
-  clients.delete(socket);
+// export const handleDisconnect = async (socket: WebSocket) => {
+//   const info = clients.get(socket);
+//   if (!info) return;
 
-  broadcastToRoom(roomId, {
-    type: "USER_LEFT",
-    payload: { userId },
-  });
-};
+//   const { roomId, userId } = info;
+//   await redisClient.sRem(`room:${roomId}`, userId);
+
+//   clients.delete(socket);
+
+//   broadcastToRoom(roomId, {
+//     type: "USER_LEFT",
+//     payload: { userId },
+//   });
+// };

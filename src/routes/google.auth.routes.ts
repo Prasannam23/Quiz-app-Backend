@@ -32,7 +32,6 @@ router.get(
     session: false,
   }),
   (req: Request, res: Response) => {
-    console.log(req)
     const user = req.user as AuthUser | undefined;
 
     if (!user) {
