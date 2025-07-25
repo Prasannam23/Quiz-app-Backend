@@ -8,7 +8,7 @@ if (cluster.isPrimary) {
   console.log(` Primary process ${process.pid} is running`);
   console.log(` Forking ${numCPUs} workers...\n`);
 
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < 1; i++) {
     cluster.fork();
   }
 
