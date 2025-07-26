@@ -1,7 +1,6 @@
 import { createClient, RedisClientType } from "redis";
-import { IQuestionService, Question, QuizUpdatePayload, score, WSMessage } from "../types/types";
+import { IQuestionService, Question, QuizStartPayload, QuizUpdatePayload, score, sendUsersPayload, WSMessage } from "../types/types";
 import { server } from "../app";
-import { sendUpdates } from "../websocket/ws.utils";
 
 export class QuestionService implements IQuestionService {
     private redisPub: RedisClientType;
@@ -80,16 +79,35 @@ export class QuestionService implements IQuestionService {
     }
 
     async publishUpdates(type: string, message: string): Promise<void> {
-        const payload: QuizUpdatePayload = {
-            message,
-            quizId: this.quizId,
-            attemptId: null,
-        };
-        const m: WSMessage = {
-            type,
-            payload,
-        };
-        await this.redisPub.publish(`quiz:${this.quizId}:updates`, JSON.stringify(m));
+        if(type==="USERS_IN_ROOM") {
+            const payload: sendUsersPayload = JSON.parse(message);
+            const m: WSMessage = {
+                type,
+                payload,
+            }
+            await this.redisPub.publish(`quiz:${this.quizId}:updates`, JSON.stringify(m));
+        } else if(type==="QUIZ_STARTED") {
+            const payload: QuizUpdatePayload = {
+                message,
+                quizId: this.quizId,
+            };
+            const m: WSMessage = {
+                type,
+                payload,
+            };
+            await this.redisPub.publish(`quiz:${this.quizId}:updates`, JSON.stringify(m));
+        } else {
+            const payload: QuizStartPayload = {
+                message,
+                quizId: this.quizId,
+                attemptId: null,
+            };
+            const m: WSMessage = {
+                type,
+                payload,
+            };
+            await this.redisPub.publish(`quiz:${this.quizId}:updates`, JSON.stringify(m));
+        }
     }
 
     async subscribe(handler1: (message: string) => void, handler2: (messsage: string) => void): Promise<void> {
@@ -107,8 +125,9 @@ export class QuestionService implements IQuestionService {
                 const test = await this.addNewCurrentQuestion();
                 if(!test) {
                     await this.redisSub.unsubscribe("__keyevent@0__:expired");
-                    await sendUpdates("QUIZ_END", "This quiz has ended.", this.quizId);
-                    this.unsubscribe();
+                    await this.publishUpdates("QUIZ_END", "This quiz has ended.");
+                    await this.unsubscribe();
+                    await this.redisSub.quit();
                 }
             }
         });
