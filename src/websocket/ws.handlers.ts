@@ -8,7 +8,7 @@ import {
   WSMessage,
   sendUsersPayload
 } from "../types/types";
-import { addClient,  clientSubscriptionToQuestionAndLeaderboard, evaluateScoreAndUpdateLeaderboard, sendUpdates, startquiz } from "./ws.utils";
+import { addClient, evaluateScoreAndUpdateLeaderboard, sendUpdates, startquiz } from "./ws.utils";
 import prisma from "../config/db";
 import { redisService } from "../services/redis.service";
 import { server } from "../app";
@@ -86,8 +86,6 @@ export const handleJoinRoom = async (socket: WebSocket, payload: JoinRoomPayload
 
     await redisService.addUsertoRoom(data.id, quizId);
 
-    await clientSubscriptionToQuestionAndLeaderboard(quizId);
-
   } catch (error) {
     console.error(`Error while handling user join message ${(error as Error).message}`)
   }
@@ -99,11 +97,7 @@ export const sendUsers = async (socket: WebSocket, roomId: string): Promise<void
     roomId,
     users,
   }
-  const message: WSMessage = {
-    type: "USERS_IN_ROOM",
-    payload,
-  }
-  socket.send(JSON.stringify(message));
+  await sendUpdates("USERS_IN_ROOM", JSON.stringify(payload), roomId);
 }
 
 export const handleStartQuiz = async (socket: WebSocket, payload: StartQuizPayload) => {
@@ -111,16 +105,18 @@ export const handleStartQuiz = async (socket: WebSocket, payload: StartQuizPaylo
 
   await sendUpdates("QUIZ_STARTED", "Quiz has started, here is the attemptId for the given quiz", quizId);
 
-  const test = await startquiz(quizId);
-  if(!test) {
-    const message: WSMessage = {
-      type: "ERROR",
-      payload: {
-        message: "Either Quiz not found or or it does not have any questions"
+  setTimeout(async () => {
+    const test = await startquiz(quizId);
+    if(!test) {
+      const message: WSMessage = {
+        type: "ERROR",
+        payload: {
+          message: "Either Quiz not found or or it does not have any questions"
+        }
       }
+      socket.send(JSON.stringify(message));
     }
-    socket.send(JSON.stringify(message));
-  }
+  }, 3000);
 };
 
 export const handleAnswer = async (socket: WebSocket, payload: AnswerPayload) => {
@@ -142,15 +138,8 @@ export const handleAnswer = async (socket: WebSocket, payload: AnswerPayload) =>
   }
 };
 
-// export const handleDisconnect = async (socket: WebSocket) => {
-//   const info = clients.get(socket);
-//   if (!info) return;
-
-//   const { roomId, userId } = info;
-//   await redisClient.sRem(`room:${roomId}`, userId);
-
-//   clients.delete(socket);
-
+// export const handleDisconnect = async (socketId: string) => {
+  
 //   broadcastToRoom(roomId, {
 //     type: "USER_LEFT",
 //     payload: { userId },

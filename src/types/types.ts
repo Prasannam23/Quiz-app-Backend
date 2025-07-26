@@ -17,7 +17,7 @@ export interface Room {
 
 export interface WSMessage {
   type: string;
-  payload: JoinRoomPayload | AnswerPayload | StartQuizPayload | UserPayload | sendUsersPayload | ErrorPayload | LeaderBoardEntry | QuizUpdatePayload | null;
+  payload: JoinRoomPayload | AnswerPayload | StartQuizPayload | UserPayload | sendUsersPayload | ErrorPayload | LeaderBoardEntry | QuizUpdatePayload | QuizStartPayload | null;
 }
 
 export interface ErrorPayload {
@@ -53,6 +53,11 @@ export interface sendUsersPayload {
 }
 
 export interface QuizUpdatePayload {
+  quizId: string,
+  message: string,
+}
+
+export interface QuizStartPayload {
   quizId: string,
   message: string,
   attemptId: string | null,

@@ -2,7 +2,7 @@
 import { RedisClientType } from 'redis';
 import { redisPub, redisSub } from '../config/redis';
 import LeaderBoardService from '../services/leaderboard.service';
-import { ClientInfo, LeaderBoardEntry, LeaderboardPayload, QuizUpdatePayload, Room, SelfScore, WSMessage } from '../types/types';
+import { ClientInfo, LeaderBoardEntry, LeaderboardPayload, QuizStartPayload, Room, SelfScore, WSMessage } from '../types/types';
 import { QuestionService } from '../services/question.service';
 import { server } from '../app';
 import prisma from '../config/db';
@@ -19,6 +19,7 @@ export const addClient = async (client: ClientInfo, roomId: string, socketId: st
       leaderboardService: new LeaderBoardService(redisPub as RedisClientType, redisSub as RedisClientType, `leaderboard:${roomId}`, `pubsub:${roomId}`, roomId),
       questionService,
     }
+    await clientSubscriptionToQuestionAndLeaderboard(roomId);
     room.clients.set(socketId, client);
     rooms.set(roomId, room);
     console.log(`room created on `, server.address())
@@ -110,7 +111,7 @@ export const startquiz = async (quizId: string) => {
     return false;
   }
   await rooms.get(quizId)?.questionService.subscibeToExpiry();
-  prisma.quiz.update({
+  await prisma.quiz.update({
     where: {
       id: quizId
     },
@@ -128,6 +129,8 @@ export const sendAttemptId = async (quizId: string, update: WSMessage) => {
   }
   const attemptPromises = [];
   for(const [,val] of clients) {
+    const startedAt = new Date();
+    startedAt.setSeconds(startedAt.getSeconds() + 3);
     if(!val.isHost) attemptPromises.push({socket: val.socket,attempt: await prisma.attempt.create({
       data: {
         quiz: {
@@ -137,14 +140,14 @@ export const sendAttemptId = async (quizId: string, update: WSMessage) => {
           connect: {id: val.userId},
         },
         score: 0,
-        startedAt: new Date(),
+        startedAt,
       },
     })});
     else val.socket.send(JSON.stringify(update));
   }
   const attempts = await Promise.all(attemptPromises);
   attempts.forEach((attempt) => {
-    (update.payload as QuizUpdatePayload).attemptId = attempt.attempt.id;
+    (update.payload as QuizStartPayload).attemptId = attempt.attempt.id;
     attempt.socket.send(JSON.stringify(update));
   })
 }
@@ -186,7 +189,8 @@ export const evaluateScoreAndUpdateLeaderboard = async(userId: string, quizId: s
     }
     await l.incrementScore(userId, questionScore.score);
     const topPlayers = await l.getTopPlayers(10);
-    prisma.answer.create({
+    l.publishUpdates("leaderboard", JSON.stringify(topPlayers));
+    await prisma.answer.create({
       data: {
         attempt: {
           connect: {
@@ -204,7 +208,7 @@ export const evaluateScoreAndUpdateLeaderboard = async(userId: string, quizId: s
         timeTaken:  questionScore.timetaken,
       }
     });
-    prisma.attempt.update({
+    await prisma.attempt.update({
       where: {
         id: attemptId,
       },
@@ -215,7 +219,6 @@ export const evaluateScoreAndUpdateLeaderboard = async(userId: string, quizId: s
         completedAt: new Date(),
       }
     });
-    l.publishUpdates("leaderboard", JSON.stringify(topPlayers));
     return true;
   } catch (error) {
     console.error((error as Error).message);

@@ -40,7 +40,7 @@ export const cacheQuizToRedis = async (req: Request, res: Response): Promise<voi
       throw Error("No questions in the current quiz");
     }
    
-    await redisClient.set(`quizData:${quizId}`, JSON.stringify(quiz), { EX: time + 600 });
+    await redisClient.set(`quizData:${quizId}`, JSON.stringify(quiz));
 
     res.status(200).json({ cached: true});
   } catch (err) {

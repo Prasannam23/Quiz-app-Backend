@@ -23,7 +23,7 @@ const app = express();
 export const server = http.createServer(app); 
 
 
-export async function initializeWorkerApp(port: number) {
+export async function initializeWorkerApp() {
   try {
     await connectRedis();
     app.use(cors({
@@ -68,8 +68,8 @@ export async function initializeWorkerApp(port: number) {
     startWebSocketServer(server);
 
     const PORT = process.env.PORT || 8000;
-    server.listen(port, () => {
-      console.log(`Worker ${process.pid} running on http://localhost:${port}`);
+    server.listen(PORT, () => {
+      console.log(`Worker ${process.pid} running on http://localhost:${PORT}`);
     });
   } catch (error) {
     console.error(`Worker ${process.pid}: Error during app initialization:`, error);
