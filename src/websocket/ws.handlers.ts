@@ -1,5 +1,6 @@
 import { WebSocket } from "ws";
 import {
+  AnswerPayload,
   ClientInfo,
   JoinRoomPayload,
   StartQuizPayload,
@@ -7,9 +8,10 @@ import {
   WSMessage,
   sendUsersPayload
 } from "../types/types";
-import { addClient, broadcastToRoom, clientSubscriptionToQuestion, startquiz } from "./ws.utils";
+import { addClient,  clientSubscriptionToQuestionAndLeaderboard, evaluateScoreAndUpdateLeaderboard, sendUpdates, startquiz } from "./ws.utils";
 import prisma from "../config/db";
 import { redisService } from "../services/redis.service";
+import { server } from "../app";
 
 
 export const handleJoinRoom = async (socket: WebSocket, payload: JoinRoomPayload, socketId: string) => {
@@ -20,7 +22,7 @@ export const handleJoinRoom = async (socket: WebSocket, payload: JoinRoomPayload
       isHost,
       socket,
     };
-    console.log(`👤 User ${payload.userId} joined room ${payload.quizId}`);
+    console.log(`👤 User ${payload.userId} joined room ${payload.quizId},`, server.address());
     
     await addClient(client, quizId, socketId);
     
@@ -36,6 +38,40 @@ export const handleJoinRoom = async (socket: WebSocket, payload: JoinRoomPayload
         avatar: true, 
       }
     });
+
+    const quiz = await prisma.quiz.findUnique({
+      where: {
+        id: quizId,
+      },
+    });
+
+    if(!quiz) {
+      throw new Error("Quiz not found.");
+    }
+
+    if(quiz.state == "ongoing") {
+      const attempt = await prisma.attempt.create({
+        data: {
+          score: 0,
+          user: {
+            connect: {
+              id: userId,
+            },
+          },
+          quiz: {
+            connect: {
+              id: quizId,
+            },
+          },
+          startedAt: new Date(),
+        }
+      });
+      socket.send(JSON.stringify({type: "QUIZ_ONGOING", payload: {
+        message: "Quiz Ongoing following is your attemptId, you will be given the next question shortly.",
+        attemptId: attempt.id
+      }}));
+      
+    }
   
     if(!user) {
       throw new Error("User not found.");
@@ -48,12 +84,9 @@ export const handleJoinRoom = async (socket: WebSocket, payload: JoinRoomPayload
       email: user.email,
     }
 
-    redisService.addUsertoRoom(data.id, quizId);
+    await redisService.addUsertoRoom(data.id, quizId);
 
-    broadcastToRoom(quizId, {
-      type: "USER_JOINED",
-      payload: data,
-    });
+    await clientSubscriptionToQuestionAndLeaderboard(quizId);
 
   } catch (error) {
     console.error(`Error while handling user join message ${(error as Error).message}`)
@@ -76,12 +109,7 @@ export const sendUsers = async (socket: WebSocket, roomId: string): Promise<void
 export const handleStartQuiz = async (socket: WebSocket, payload: StartQuizPayload) => {
   const { quizId } = payload;
 
-  broadcastToRoom(quizId, {
-    type: "QUIZ_STARTED",
-    payload: null,
-  });
-
-  clientSubscriptionToQuestion(quizId);
+  await sendUpdates("QUIZ_STARTED", "Quiz has started, here is the attemptId for the given quiz", quizId);
 
   const test = await startquiz(quizId);
   if(!test) {
@@ -95,18 +123,24 @@ export const handleStartQuiz = async (socket: WebSocket, payload: StartQuizPaylo
   }
 };
 
-// export const handleAnswer = async (socket: WebSocket, payload: AnswerPayload) => {
-//   const { quizId, userId, answer } = payload;
+export const handleAnswer = async (socket: WebSocket, payload: AnswerPayload) => {
+  const { quizId, userId, answer, questionId, attemptId } = payload;
+  
+  const test = await evaluateScoreAndUpdateLeaderboard(userId, quizId, questionId, answer, attemptId);
 
-//   await redisClient.set(`quiz:${quizId}:answer:${userId}`, JSON.stringify(answer));
-
-//   socket.send(
-//     JSON.stringify({
-//       type: "ANSWER_RECEIVED",
-//       payload: { status: "ok" },
-//     })
-//   );
-// };
+  if(test) {
+    socket.send(
+    JSON.stringify({
+      type: "ANSWER_RECEIVED",
+      payload: { status: "ok" },
+    })
+  );
+  } else {
+    socket.send(JSON.stringify({type: "ERROR", payload:{
+      message: "Something went wrong."
+    }}));
+  }
+};
 
 // export const handleDisconnect = async (socket: WebSocket) => {
 //   const info = clients.get(socket);

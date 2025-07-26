@@ -73,15 +73,16 @@ model Attempt {
   userId      String
   quizId      String
   score       Int       
-  startedAt   DateTime
-  completedAt DateTime
-  roomId String? 
+  startedAt   DateTime?
+  completedAt DateTime?
+  roomId      String? 
   user        User       @relation(fields: [userId], references: [id]) 
   quiz        Quiz       @relation(fields: [quizId], references: [id]) 
 
   answers     Answer[]  
   questionStartedAt DateTime?
-  answeredAt        DateTime?  
+  answeredAt        DateTime?
+
 }
 
 model Answer {

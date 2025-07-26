@@ -9,7 +9,7 @@ export const cacheQuizToRedis = async (req: Request, res: Response): Promise<voi
     
     const cached = await redisClient.get(`quizData:${quizId}`);
     if (cached) {
-      res.status(200).json({ fromCache: true, data: JSON.parse(cached) });
+      res.status(200).json({ cached: true });
     }
 
  
@@ -42,7 +42,7 @@ export const cacheQuizToRedis = async (req: Request, res: Response): Promise<voi
    
     await redisClient.set(`quizData:${quizId}`, JSON.stringify(quiz), { EX: time + 600 });
 
-    res.status(200).json({ fromCache: false, data: quiz });
+    res.status(200).json({ cached: true});
   } catch (err) {
     console.error("Redis cache error:", err);
     res.status(500).json({ error: "Internal server error" });
