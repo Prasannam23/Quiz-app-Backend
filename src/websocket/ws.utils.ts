@@ -2,8 +2,10 @@
 import { RedisClientType } from 'redis';
 import { redisPub, redisSub } from '../config/redis';
 import LeaderBoardService from '../services/leaderboard.service';
-import { ClientInfo, Room, WSMessage } from '../types/types';
+import { ClientInfo, LeaderBoardEntry, LeaderboardPayload, QuizUpdatePayload, Room, SelfScore, WSMessage } from '../types/types';
 import { QuestionService } from '../services/question.service';
+import { server } from '../app';
+import prisma from '../config/db';
 
 export const rooms = new Map<string, Room>();
 
@@ -14,11 +16,12 @@ export const addClient = async (client: ClientInfo, roomId: string, socketId: st
     const room: Room = {
       roomId,
       clients: new Map<string, ClientInfo>(),
-      leaderboardService: new LeaderBoardService(redisPub as RedisClientType, redisSub as RedisClientType, `leaderboard:${roomId}`, `pubsub:${roomId}`),
+      leaderboardService: new LeaderBoardService(redisPub as RedisClientType, redisSub as RedisClientType, `leaderboard:${roomId}`, `pubsub:${roomId}`, roomId),
       questionService,
     }
     room.clients.set(socketId, client);
     rooms.set(roomId, room);
+    console.log(`room created on `, server.address())
   } else rooms.get(roomId)?.clients.set(socketId,client);
 };
 
@@ -57,6 +60,41 @@ export const broadcastToRoom = (roomId: string, message: WSMessage) => {
   }
 };
 
+export const broadcastLeaderBoardToRoom = async (roomId: string, topPlayers: LeaderBoardEntry[]) => {
+  try {
+    const roomClients = getClientsInRoom(roomId);
+    const room = rooms?.get(roomId);
+    if(!roomClients || !room) {
+      throw Error("Room not found.");
+    }
+    const arr = [];
+    for(const [, value] of roomClients) {
+      arr.push({
+        socket: value.socket,
+        score: await room.leaderboardService.getScore(value.userId),
+        rank: await room.leaderboardService.getRank(value.userId),
+        userId: value.userId,
+      });
+    }
+    const fulfilledArr = await Promise.all(arr);
+    fulfilledArr.forEach(async (value) => {
+      const selfScore: SelfScore = {
+        userId: value.userId,
+        rank: value.rank || 0,
+        score: value.score || 0,
+      }
+      const payload: LeaderboardPayload = {
+        quizId: roomId,
+        topPlayers,
+        selfScore
+      }
+      value.socket?.send(JSON.stringify({type: "Leaderboard", payload}));
+    });
+  } catch (error) {
+    console.error(`Error ocurred while broadcasting to room, ${(error as Error).message}`);
+  }
+}
+
 export const isHost = (roomId: string, userId: string) => {
   const room = rooms.get(roomId);
   if(!room) return false;
@@ -72,12 +110,115 @@ export const startquiz = async (quizId: string) => {
     return false;
   }
   await rooms.get(quizId)?.questionService.subscibeToExpiry();
+  prisma.quiz.update({
+    where: {
+      id: quizId
+    },
+    data: {
+      state: "ongoing",
+    }
+  })
   return true;
 }
 
-export const clientSubscriptionToQuestion = (quizId: string) => {
-  rooms.get(quizId)?.questionService.subscribe((message) => {
-    const question = JSON.parse(message);
+export const sendAttemptId = async (quizId: string, update: WSMessage) => {
+  const clients = rooms.get(quizId)?.clients;
+  if(!clients) {
+    return;
+  }
+  const attemptPromises = [];
+  for(const [,val] of clients) {
+    if(!val.isHost) attemptPromises.push({socket: val.socket,attempt: await prisma.attempt.create({
+      data: {
+        quiz: {
+          connect: { id: quizId }
+        },
+        user:  {
+          connect: {id: val.userId},
+        },
+        score: 0,
+        startedAt: new Date(),
+      },
+    })});
+    else val.socket.send(JSON.stringify(update));
+  }
+  const attempts = await Promise.all(attemptPromises);
+  attempts.forEach((attempt) => {
+    (update.payload as QuizUpdatePayload).attemptId = attempt.attempt.id;
+    attempt.socket.send(JSON.stringify(update));
+  })
+}
+
+export const sendUpdates = async (type: string, message: string, quizId: string) => {
+  await rooms.get(quizId)?.questionService.publishUpdates(type, message);
+}
+
+export const clientSubscriptionToQuestionAndLeaderboard = async (quizId: string) => {
+  await rooms.get(quizId)?.questionService.subscribe((message) => {
+    const question: WSMessage = JSON.parse(message);
     broadcastToRoom(quizId, question);
+  }, (message) => {
+    const update: WSMessage = JSON.parse(message);
+    if(update.type === "QUIZ_STARTED") {
+      sendAttemptId(quizId, update);
+    } else broadcastToRoom(quizId, update);
   });
+  await rooms.get(quizId)?.leaderboardService.subscribeToUpdates("leaderboard", (message: string)=> {
+    const topPlayers: LeaderBoardEntry[] = JSON.parse(message);
+    broadcastLeaderBoardToRoom(quizId, topPlayers);
+  });
+  console.log(`Client subscription to new question and leaderboard `, server.address());
+}
+
+export const evaluateScoreAndUpdateLeaderboard = async(userId: string, quizId: string, questionId: string, answer: number, attemptId: string): Promise<boolean> => {
+  try {
+    const questionScore = await rooms.get(quizId)?.questionService.evaluateAnswer(questionId, answer);
+    const l = rooms.get(quizId)?.leaderboardService;
+    if(!l) {
+      throw new Error("Leaderboard service not found, Either not initiated or the quiz has not started yet.");
+    }
+    if(!questionScore) {
+      throw new Error("Something went wrong while evaluating score.");
+    }
+    const existingScore = await l.getScore(userId);
+    if(!existingScore) {
+      await l.addMember(userId, questionScore.score);
+    }
+    await l.incrementScore(userId, questionScore.score);
+    const topPlayers = await l.getTopPlayers(10);
+    prisma.answer.create({
+      data: {
+        attempt: {
+          connect: {
+            id: attemptId,
+          },
+        },
+        question: {
+          connect: {
+            id: quizId,
+          },
+        },
+        selected: answer,
+        isCorrect: questionScore? true: false,
+        marksScored: questionScore.score,
+        timeTaken:  questionScore.timetaken,
+      }
+    });
+    prisma.attempt.update({
+      where: {
+        id: attemptId,
+      },
+      data: {
+        score: {
+          increment: questionScore.score,
+        },
+        completedAt: new Date(),
+      }
+    });
+    l.publishUpdates("leaderboard", JSON.stringify(topPlayers));
+    return true;
+  } catch (error) {
+    console.error((error as Error).message);
+    return false;
+  }
 }

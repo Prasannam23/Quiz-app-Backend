@@ -5,7 +5,7 @@ import {
   removeClient,
 } from './ws.utils';
 import jwt from "jsonwebtoken";
-import { handleJoinRoom, handleStartQuiz, sendUsers } from './ws.handlers';
+import { handleAnswer, handleJoinRoom, handleStartQuiz, sendUsers } from './ws.handlers';
 
 export const startWebSocketServer = (server: HTTPServer) => {
   const wss = new WebSocket.Server({ server });
@@ -18,7 +18,7 @@ export const startWebSocketServer = (server: HTTPServer) => {
     if(!decoded) return wss.close();
     const socketId = crypto.randomUUID();
 
-    console.log('New WebSocket connection:', socketId);
+    console.log('New WebSocket connection:', socketId, server.address());
 
     socket.on('message', async (data) => {
       try {
@@ -26,7 +26,7 @@ export const startWebSocketServer = (server: HTTPServer) => {
 
         switch (message.type) {
           case 'JOIN_ROOM': {
-            handleJoinRoom(socket, message.payload as JoinRoomPayload, socketId);
+            await handleJoinRoom(socket, message.payload as JoinRoomPayload, socketId);
             sendUsers(socket, (message.payload as JoinRoomPayload).quizId);
             break;
           }
@@ -38,8 +38,7 @@ export const startWebSocketServer = (server: HTTPServer) => {
 
           case 'ANSWER': {
             const payload = message.payload as AnswerPayload;
-            console.log(` Answer from ${payload.userId}: ${payload.answer}`);
-            
+            handleAnswer(socket, payload);
             break;
           }
 

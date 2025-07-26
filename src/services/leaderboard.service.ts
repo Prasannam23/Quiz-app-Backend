@@ -6,12 +6,14 @@ class LeaderBoardService implements ILeaderBoardService {
     private redisSub: RedisClientType;
     private leaderBoardKey: string;
     private pubsubChannelPrefix: string;
+    private quizId: string;
 
-    constructor(redisPub: RedisClientType, redisSub: RedisClientType, leaderBoardKey: string, pubsubChannelPrefix: string) {
+    constructor(redisPub: RedisClientType, redisSub: RedisClientType, leaderBoardKey: string, pubsubChannelPrefix: string, quizId: string) {
         this.redisPub = redisPub;
         this.redisSub = redisSub;
         this.leaderBoardKey = leaderBoardKey;
         this.pubsubChannelPrefix = pubsubChannelPrefix;
+        this.quizId = quizId;
     }
 
     async addMember(userId: string, score: number): Promise<void> {

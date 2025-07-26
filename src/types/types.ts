@@ -17,7 +17,7 @@ export interface Room {
 
 export interface WSMessage {
   type: string;
-  payload: JoinRoomPayload | AnswerPayload | StartQuizPayload | UserPayload | sendUsersPayload | ErrorPayload | null;
+  payload: JoinRoomPayload | AnswerPayload | StartQuizPayload | UserPayload | sendUsersPayload | ErrorPayload | LeaderBoardEntry | QuizUpdatePayload | null;
 }
 
 export interface ErrorPayload {
@@ -32,9 +32,10 @@ export interface JoinRoomPayload {
 
 export interface AnswerPayload {
   quizId: string;
+  attemptId: string;
   userId: string;
   questionId: string,
-  answer: string;
+  answer: number;
 }
 
 export interface StartQuizPayload {
@@ -49,6 +50,12 @@ export interface LeaderBoardEntry {
 export interface sendUsersPayload {
   roomId: string,
   users: UserPayload[]
+}
+
+export interface QuizUpdatePayload {
+  quizId: string,
+  message: string,
+  attemptId: string | null,
 }
 
 export interface ILeaderBoardService {
@@ -77,16 +84,23 @@ export interface IQuestionService {
   addNewCurrentQuestion(question: Question): Promise<boolean>;
   getCurrentQuestion(): Promise<Question | null>;
   publishNewQuestion(question: Question): Promise<void>;
-  subscribe(handler:(message: string) => void): Promise<void>;
+  subscribe(handler1:(message: string) => void, handler2:(message: string) => void): Promise<void>;
   unsubscribe(): Promise<void>;
   subscibeToExpiry(): Promise<void>;
+  publishUpdates(type: string, message: string, attemptId: string | null): Promise<void>;
+  evaluateAnswer(questionId: string, answer: number): Promise<score>;
+}
+
+export interface score {
+  score: number;
+  timetaken: number;
 }
 
 export interface Question {
   id: string,
   question: string,
   options: string[],
-  answerIndex: string,
+  answerIndex: number,
   marks: number,
   timeLimit: number,
   status: string,
@@ -97,4 +111,16 @@ export interface UserPayload {
   name: string,
   avatar: string,
   email: string,
+}
+
+export interface LeaderboardPayload {
+  quizId: string,
+  topPlayers: LeaderBoardEntry[],
+  selfScore: SelfScore,
+}
+
+export interface SelfScore {
+  userId: string,
+  rank: number,
+  score: number,
 }

@@ -18,7 +18,7 @@ if (cluster.isPrimary) {
   });
 
 } else {
-  initializeWorkerApp().catch(err => {
+  initializeWorkerApp(process.pid%8000).catch(err => {
     console.error(`Worker ${process.pid} failed to initialize:`, err);
   });
 }
