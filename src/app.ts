@@ -25,7 +25,6 @@ export const server = http.createServer(app);
 
 export async function initializeWorkerApp() {
   try {
-    await connectRedis();
     app.use(cors({
       origin: 'http://localhost:3000',
       credentials: true,
@@ -71,6 +70,7 @@ export async function initializeWorkerApp() {
     server.listen(PORT, () => {
       console.log(`Worker ${process.pid} running on http://localhost:${PORT}`);
     });
+    await connectRedis();
   } catch (error) {
     console.error(`Worker ${process.pid}: Error during app initialization:`, error);
     process.exit(1); 
