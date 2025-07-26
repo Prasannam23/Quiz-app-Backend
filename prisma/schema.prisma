@@ -44,7 +44,7 @@ model Quiz {
   slug       String     @unique
   joinCode   String     @unique
   state      State?     @default(yet_to_start)
-
+  
   ownerId    String
   owner      User       @relation(fields: [ownerId], references: [id])
 
