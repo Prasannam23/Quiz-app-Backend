@@ -27,7 +27,6 @@ export interface ErrorPayload {
 export interface JoinRoomPayload {
   quizId: string;
   userId: string;
-  isHost: boolean;
 }
 
 export interface AnswerPayload {

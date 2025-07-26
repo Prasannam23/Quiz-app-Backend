@@ -16,15 +16,9 @@ import { server } from "../app";
 
 export const handleJoinRoom = async (socket: WebSocket, payload: JoinRoomPayload, socketId: string) => {
   try {
-    const { quizId, userId, isHost } = payload;
-    const client: ClientInfo = {
-      userId,
-      isHost,
-      socket,
-    };
+    const { quizId, userId } = payload;
+
     console.log(`👤 User ${payload.userId} joined room ${payload.quizId},`, server.address());
-    
-    await addClient(client, quizId, socketId);
     
     const user = await prisma.user.findUnique({
       where: {
@@ -44,6 +38,15 @@ export const handleJoinRoom = async (socket: WebSocket, payload: JoinRoomPayload
         id: quizId,
       },
     });
+
+    const client: ClientInfo = {
+      userId,
+      socket,
+      isHost: quiz?.ownerId==userId,
+    };
+
+    await addClient(client, quizId, socketId);
+    
 
     if(!quiz) {
       throw new Error("Quiz not found.");
@@ -86,6 +89,7 @@ export const handleJoinRoom = async (socket: WebSocket, payload: JoinRoomPayload
 
     await redisService.addUsertoRoom(data.id, quizId);
 
+    await sendUpdates("NEW_USER", JSON.stringify(data), quizId);
   } catch (error) {
     console.error(`Error while handling user join message ${(error as Error).message}`)
   }
@@ -97,7 +101,11 @@ export const sendUsers = async (socket: WebSocket, roomId: string): Promise<void
     roomId,
     users,
   }
-  await sendUpdates("USERS_IN_ROOM", JSON.stringify(payload), roomId);
+  const m: WSMessage = {
+    type: "USERS_IN_ROOM",
+    payload,
+  }
+  socket.send(JSON.stringify(m));
 }
 
 export const handleStartQuiz = async (socket: WebSocket, payload: StartQuizPayload) => {
