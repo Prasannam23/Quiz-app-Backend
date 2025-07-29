@@ -197,8 +197,7 @@ export const evaluateScoreAndUpdateLeaderboard = async(userId: string, quizId: s
     const existingScore = await l.getScore(userId);
     if(!existingScore) {
       await l.addMember(userId, questionScore.score);
-    }
-    await l.incrementScore(userId, questionScore.score);
+    } else await l.incrementScore(userId, questionScore.score);
     const topPlayers = await l.getTopPlayers(10);
     l.publishUpdates("leaderboard", JSON.stringify(topPlayers));
     await prisma.answer.create({
