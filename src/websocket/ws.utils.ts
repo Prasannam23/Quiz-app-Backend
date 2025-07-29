@@ -13,13 +13,13 @@ export const addClient = async (client: ClientInfo, roomId: string, socketId: st
   if(!rooms.has(roomId)) {
     const questionService = new QuestionService(redisPub as RedisClientType, roomId);
     await questionService.init();
+    console.log("initiated");
     const room: Room = {
       roomId,
       clients: new Map<string, ClientInfo>(),
       leaderboardService: new LeaderBoardService(redisPub as RedisClientType, redisSub as RedisClientType, `leaderboard:${roomId}`, `pubsub:${roomId}`, roomId),
       questionService,
     }
-    await clientSubscriptionToQuestionAndLeaderboard(roomId);
     room.clients.set(socketId, client);
     rooms.set(roomId, room);
     console.log(`room created on `, server.address())
@@ -49,6 +49,7 @@ export const getClientBySocketId = (socketId: string) => {
 
 export const broadcastToRoom = (roomId: string, message: WSMessage) => {
   try {
+    console.log("broadcasting", message);
     const roomClients = getClientsInRoom(roomId);
     if(!roomClients) {
       throw Error("Room not found.");
@@ -153,15 +154,18 @@ export const sendAttemptId = async (quizId: string, update: WSMessage) => {
 }
 
 export const sendUpdates = async (type: string, message: string, quizId: string) => {
+  console.log("inside sendupdates");
   await rooms.get(quizId)?.questionService.publishUpdates(type, message);
 }
 
 export const clientSubscriptionToQuestionAndLeaderboard = async (quizId: string) => {
+  console.log("Inside client subscription");
   await rooms.get(quizId)?.questionService.subscribe((message) => {
     const question: WSMessage = JSON.parse(message);
     broadcastToRoom(quizId, question);
   }, (message) => {
     const update: WSMessage = JSON.parse(message);
+    console.log(update);
     if(update.type === "QUIZ_STARTED") {
       sendAttemptId(quizId, update);
     } else broadcastToRoom(quizId, update);

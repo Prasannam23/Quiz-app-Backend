@@ -1,5 +1,5 @@
 import { createClient, RedisClientType } from "redis";
-import { IQuestionService, Question, QuizStartPayload, QuizUpdatePayload, score, sendUsersPayload, WSMessage } from "../types/types";
+import { HostPayload, IQuestionService, NewUserPayload, Question, QuizStartPayload, QuizUpdatePayload, score, UserPayload, WSMessage } from "../types/types";
 import { server } from "../app";
 
 export class QuestionService implements IQuestionService {
@@ -79,17 +79,22 @@ export class QuestionService implements IQuestionService {
     }
 
     async publishUpdates(type: string, message: string): Promise<void> {
-        if(type==="USERS_IN_ROOM") {
-            const payload: sendUsersPayload = JSON.parse(message);
+        if(type==="NEW_USER") {
+            console.log("inside new users section");
+            const payload: NewUserPayload = {
+                user: JSON.parse(message) as UserPayload | HostPayload,
+            }
             const m: WSMessage = {
                 type,
                 payload,
             }
             await this.redisPub.publish(`quiz:${this.quizId}:updates`, JSON.stringify(m));
         } else if(type==="QUIZ_STARTED") {
-            const payload: QuizUpdatePayload = {
+            console.log("inside quiz started section");
+            const payload: QuizStartPayload = {
                 message,
                 quizId: this.quizId,
+                attemptId: null,
             };
             const m: WSMessage = {
                 type,
@@ -97,10 +102,10 @@ export class QuestionService implements IQuestionService {
             };
             await this.redisPub.publish(`quiz:${this.quizId}:updates`, JSON.stringify(m));
         } else {
-            const payload: QuizStartPayload = {
+            console.log("inside else");
+            const payload: QuizUpdatePayload = {
                 message,
                 quizId: this.quizId,
-                attemptId: null,
             };
             const m: WSMessage = {
                 type,

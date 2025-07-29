@@ -2,13 +2,14 @@ import { WebSocket } from "ws";
 import {
   AnswerPayload,
   ClientInfo,
+  HostPayload,
   JoinRoomPayload,
   StartQuizPayload,
   UserPayload,
   WSMessage,
   sendUsersPayload
 } from "../types/types";
-import { addClient, evaluateScoreAndUpdateLeaderboard, sendUpdates, startquiz } from "./ws.utils";
+import { addClient, clientSubscriptionToQuestionAndLeaderboard, evaluateScoreAndUpdateLeaderboard, sendUpdates, startquiz } from "./ws.utils";
 import prisma from "../config/db";
 import { redisService } from "../services/redis.service";
 import { server } from "../app";
@@ -80,16 +81,30 @@ export const handleJoinRoom = async (socket: WebSocket, payload: JoinRoomPayload
       throw new Error("User not found.");
     }
   
-    const data: UserPayload = {
-      id: user.id,
-      name: `${user.firstName} ${user.lastName}`,
-      avatar: user.avatar || 'No-Avatar',
-      email: user.email,
+    let data: UserPayload | HostPayload;
+    if(quiz?.ownerId==userId) {
+      data = {
+        id: user.id,
+        name: `${user.firstName} ${user.lastName}`,
+        avatar: user.avatar || 'No-Avatar',
+        email: user.email,
+      }
+    } else {
+      data = {
+        id: user.id,
+        name: `${user.firstName} ${user.lastName}`,
+        avatar: user.avatar || 'No-Avatar',
+        email: user.email,
+        isHost: quiz?.ownerId==userId,
+      }
     }
 
-    await redisService.addUsertoRoom(data.id, quizId);
+    await redisService.addUsertoRoom(data.id, quizId, quiz?.ownerId==userId);
+
+    await clientSubscriptionToQuestionAndLeaderboard(quizId);
 
     await sendUpdates("NEW_USER", JSON.stringify(data), quizId);
+
   } catch (error) {
     console.error(`Error while handling user join message ${(error as Error).message}`)
   }
