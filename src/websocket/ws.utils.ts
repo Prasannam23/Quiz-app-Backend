@@ -1,15 +1,16 @@
 // src/websocket/ws.utils.ts
 import { RedisClientType } from 'redis';
-import { redisPub, redisSub } from '../config/redis';
+import { redisClient, redisPub, redisSub } from '../config/redis';
 import LeaderBoardService from '../services/leaderboard.service';
 import { ClientInfo, LeaderBoardEntry, LeaderboardPayload, QuizStartPayload, Room, SelfScore, WSMessage } from '../types/types';
 import { QuestionService } from '../services/question.service';
 import { server } from '../app';
 import prisma from '../config/db';
+import { WebSocket } from 'ws';
 
 export const rooms = new Map<string, Room>();
 
-export const addClient = async (client: ClientInfo, roomId: string, socketId: string) => {
+export const addClient = async (client: ClientInfo, roomId: string) => {
   if(!rooms.has(roomId)) {
     const questionService = new QuestionService(redisPub as RedisClientType, roomId);
     await questionService.init();
@@ -20,17 +21,18 @@ export const addClient = async (client: ClientInfo, roomId: string, socketId: st
       leaderboardService: new LeaderBoardService(redisPub as RedisClientType, redisSub as RedisClientType, `leaderboard:${roomId}`, `pubsub:${roomId}`, roomId),
       questionService,
     }
-    room.clients.set(socketId, client);
+    room.clients.set(client.userId, client);
     rooms.set(roomId, room);
+    await clientSubscriptionToQuestionAndLeaderboard(roomId);
     console.log(`room created on `, server.address())
-  } else rooms.get(roomId)?.clients.set(socketId,client);
+  } else rooms.get(roomId)?.clients.set(client.userId ,client);
 };
 
-export const removeClient = (socketId: string) => {
+export const removeClient = (userId: string) => {
   for(const [key, value] of rooms) {
-    if(value.clients.has(socketId)) {
-      value.clients.delete(socketId);
-      console.log(`Client with socket id ${socketId} removed from Room ${key}`);
+    if(value.clients.has(userId)) {
+      value.clients.delete(userId);
+      console.log(`Client with socket id ${userId} removed from Room ${key}`);
     }
   }
 };
@@ -39,10 +41,10 @@ export const getClientsInRoom = (roomId: string) => {
   return rooms.get(roomId)?.clients;
 };
 
-export const getClientBySocketId = (socketId: string) => {
+export const getClientByUserId = (userId: string) => {
   for(const [, value] of rooms) {
-    if(value.clients.has(socketId)) {
-      return value.clients.get(socketId);
+    if(value.clients.has(userId)) {
+      return value.clients.get(userId);
     }
   }
 };
@@ -76,20 +78,22 @@ export const broadcastLeaderBoardToRoom = async (roomId: string, topPlayers: Lea
         score: await room.leaderboardService.getScore(value.userId),
         rank: await room.leaderboardService.getRank(value.userId),
         userId: value.userId,
+        isHost: value.isHost,
       });
     }
     const fulfilledArr = await Promise.all(arr);
     fulfilledArr.forEach(async (value) => {
       const selfScore: SelfScore = {
         userId: value.userId,
-        rank: value.rank || 0,
-        score: value.score || 0,
+        rank: value.rank || -1,
+        score: value.score || -1,
       }
       const payload: LeaderboardPayload = {
         quizId: roomId,
         topPlayers,
         selfScore
       }
+      if(value.isHost) payload.selfScore = null;
       value.socket?.send(JSON.stringify({type: "Leaderboard", payload}));
     });
   } catch (error) {
@@ -97,11 +101,11 @@ export const broadcastLeaderBoardToRoom = async (roomId: string, topPlayers: Lea
   }
 }
 
-export const isHost = (roomId: string, userId: string) => {
+export const isHost = (roomId: string) => {
   const room = rooms.get(roomId);
   if(!room) return false;
   for(const [, val] of room.clients) {
-    if(userId==val.userId && val.isHost) return true;
+    if(val.isHost) return true;
   }
   return false;
 }
@@ -168,6 +172,9 @@ export const clientSubscriptionToQuestionAndLeaderboard = async (quizId: string)
     console.log(update);
     if(update.type === "QUIZ_STARTED") {
       sendAttemptId(quizId, update);
+    } else if(update.type==="QUIZ_END") {
+      broadcastToRoom(quizId, update);
+      finishQuiz(quizId);
     } else broadcastToRoom(quizId, update);
   });
   await rooms.get(quizId)?.leaderboardService.subscribeToUpdates("leaderboard", (message: string)=> {
@@ -203,7 +210,7 @@ export const evaluateScoreAndUpdateLeaderboard = async(userId: string, quizId: s
         },
         question: {
           connect: {
-            id: quizId,
+            id: questionId,
           },
         },
         selected: answer,
@@ -220,6 +227,7 @@ export const evaluateScoreAndUpdateLeaderboard = async(userId: string, quizId: s
         score: {
           increment: questionScore.score,
         },
+        state: "ongoing",
         completedAt: new Date(),
       }
     });
@@ -229,3 +237,39 @@ export const evaluateScoreAndUpdateLeaderboard = async(userId: string, quizId: s
     return false;
   }
 }
+
+export const finishQuizHost = async (quizId: string) => {
+  const size = await rooms.get(quizId)?.leaderboardService.size();
+  if(!size) {
+    return;
+  }
+  const leaderboard = await rooms.get(quizId)?.leaderboardService.getPlayersInRange(0, size);
+
+  await rooms.get(quizId)?.leaderboardService.publishUpdates("leaderboard", JSON.stringify(leaderboard));
+
+  setTimeout(async () => {
+    await rooms.get(quizId)?.leaderboardService.unsubscribeToUpdates("leaderboard");
+  }, 3000);
+
+  await rooms.get('quizId')?.questionService.publishUpdates("QUIZ_END", "This quiz has ended.");
+  await redisClient.del([`quizData:${quizId}`, `quiz:${quizId}`, `leaderboard:${quizId}`]);
+}
+
+export const finishQuiz = async (quizId: string) => {
+  const clients = rooms.get(quizId)?.clients;
+  if(clients) {
+    for(const [, val] of clients) {
+      val.socket.close();
+    }
+  }
+  rooms.delete(quizId);
+}
+
+export const handleFetchLeaderboard = async (quizId: string, socket: WebSocket, startRank: number, count: number) => {
+  const leaderboard = await rooms.get(quizId)?.leaderboardService.getPlayersInRange(startRank, count);
+  socket.send(JSON.stringify({type: "Leaderboard_In_Range", leaderboard}));
+}
+
+export const handleDisconnect = async (quizId: string, userId: string) => {
+  await rooms.get(quizId)?.questionService.publishUpdates("USER_LEFT", userId);
+};

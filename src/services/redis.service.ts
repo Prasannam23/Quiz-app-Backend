@@ -16,28 +16,9 @@ class RedisService implements IRedisService {
     return (users as UserPayload[]);
   }
 
-  async addUsertoRoom(userId: string, quizId: string, isHost: boolean): Promise<void> {
+  async addUsertoRoom(user: UserPayload | HostPayload, quizId: string): Promise<void> {
     try {
-      const user = await prisma.user.findUnique({where:{id: userId}, select: {id: true, firstName: true, lastName: true, avatar: true, email: true }});
-      if(!user) return;
-      let userPayload: UserPayload | HostPayload;
-      if(isHost) {
-        userPayload = {
-          id: user.id,
-          name: user.firstName + " " + user.lastName,
-          avatar: user.avatar || "No-avatar",
-          email: user.email,
-          isHost,
-        };
-      } else {
-        userPayload = {
-          id: user.id,
-          name: user.firstName + " " + user.lastName,
-          avatar: user.avatar || "No-avatar",
-          email: user.email,
-        };
-      }
-      await this.client.sAdd(`quiz:${quizId}`, [JSON.stringify(userPayload)]);
+      await this.client.sAdd(`quiz:${quizId}`, [JSON.stringify(user)]);
       console.log("Added user to ")
     } catch (error) {
       console.error("Error adding user to room.", (error as Error).message);

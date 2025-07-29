@@ -9,17 +9,21 @@ import {
   WSMessage,
   sendUsersPayload
 } from "../types/types";
-import { addClient, clientSubscriptionToQuestionAndLeaderboard, evaluateScoreAndUpdateLeaderboard, sendUpdates, startquiz } from "./ws.utils";
+import { addClient, evaluateScoreAndUpdateLeaderboard, getClientByUserId, sendUpdates, startquiz } from "./ws.utils";
 import prisma from "../config/db";
 import { redisService } from "../services/redis.service";
 import { server } from "../app";
 
 
-export const handleJoinRoom = async (socket: WebSocket, payload: JoinRoomPayload, socketId: string) => {
+export const handleJoinRoom = async (socket: WebSocket, payload: JoinRoomPayload) => {
   try {
     const { quizId, userId } = payload;
 
     console.log(`👤 User ${payload.userId} joined room ${payload.quizId},`, server.address());
+
+    const existingUser = getClientByUserId(userId);
+
+    const existingUserInRedis = await redisService.checkIfUserInRoom(userId, quizId);
     
     const user = await prisma.user.findUnique({
       where: {
@@ -46,14 +50,32 @@ export const handleJoinRoom = async (socket: WebSocket, payload: JoinRoomPayload
       isHost: quiz?.ownerId==userId,
     };
 
-    await addClient(client, quizId, socketId);
-    
+    if(!existingUser) await addClient(client, quizId);
 
     if(!quiz) {
       throw new Error("Quiz not found.");
     }
 
     if(quiz.state == "ongoing") {
+      const a = await prisma.attempt.findMany({
+        where: {
+          userId,
+          quizId,
+          OR: [
+            { state: "ongoing" },
+            { state: "yet_to_start" }
+          ],
+        }
+      });
+
+      if(a.length) {
+        socket.send(JSON.stringify({type: "QUIZ_ONGOING", payload: {
+          message: "Quiz Ongoing following is your attemptId, you will be given the next question shortly.",
+          attemptId: a[0].id,
+        }}));
+        return;
+      }
+
       const attempt = await prisma.attempt.create({
         data: {
           score: 0,
@@ -82,13 +104,13 @@ export const handleJoinRoom = async (socket: WebSocket, payload: JoinRoomPayload
     }
   
     let data: UserPayload | HostPayload;
-    if(quiz?.ownerId==userId) {
+    if(quiz?.ownerId!=userId) {
       data = {
         id: user.id,
         name: `${user.firstName} ${user.lastName}`,
         avatar: user.avatar || 'No-Avatar',
         email: user.email,
-      }
+      } as UserPayload;
     } else {
       data = {
         id: user.id,
@@ -96,12 +118,11 @@ export const handleJoinRoom = async (socket: WebSocket, payload: JoinRoomPayload
         avatar: user.avatar || 'No-Avatar',
         email: user.email,
         isHost: quiz?.ownerId==userId,
-      }
+      } as HostPayload;
     }
 
-    await redisService.addUsertoRoom(data.id, quizId, quiz?.ownerId==userId);
+    if(!existingUserInRedis) await redisService.addUsertoRoom(data, quizId);
 
-    await clientSubscriptionToQuestionAndLeaderboard(quizId);
 
     await sendUpdates("NEW_USER", JSON.stringify(data), quizId);
 
@@ -160,11 +181,3 @@ export const handleAnswer = async (socket: WebSocket, payload: AnswerPayload) =>
     }}));
   }
 };
-
-// export const handleDisconnect = async (socketId: string) => {
-  
-//   broadcastToRoom(roomId, {
-//     type: "USER_LEFT",
-//     payload: { userId },
-//   });
-// };
