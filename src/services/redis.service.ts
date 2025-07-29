@@ -1,6 +1,6 @@
 import { RedisClientType } from "redis";
 import prisma from "../config/db";
-import { IRedisService, UserPayload } from "../types/types";
+import { IRedisService, UserPayload, HostPayload } from "../types/types";
 import { redisClient } from "../config/redis";
 
 class RedisService implements IRedisService {
@@ -16,17 +16,29 @@ class RedisService implements IRedisService {
     return (users as UserPayload[]);
   }
 
-  async addUsertoRoom(userId: string, quizId: string): Promise<void> {
+  async addUsertoRoom(userId: string, quizId: string, isHost: boolean): Promise<void> {
     try {
       const user = await prisma.user.findUnique({where:{id: userId}, select: {id: true, firstName: true, lastName: true, avatar: true, email: true }});
       if(!user) return;
-      const userPayload: UserPayload = {
-        id: user.id,
-        name: user.firstName + " " + user.lastName,
-        avatar: user.avatar || "No-avatar",
-        email: user.email
-      };
+      let userPayload: UserPayload | HostPayload;
+      if(isHost) {
+        userPayload = {
+          id: user.id,
+          name: user.firstName + " " + user.lastName,
+          avatar: user.avatar || "No-avatar",
+          email: user.email,
+          isHost,
+        };
+      } else {
+        userPayload = {
+          id: user.id,
+          name: user.firstName + " " + user.lastName,
+          avatar: user.avatar || "No-avatar",
+          email: user.email,
+        };
+      }
       await this.client.sAdd(`quiz:${quizId}`, [JSON.stringify(userPayload)]);
+      console.log("Added user to ")
     } catch (error) {
       console.error("Error adding user to room.", (error as Error).message);
     }

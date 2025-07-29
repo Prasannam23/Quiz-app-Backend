@@ -17,7 +17,7 @@ export interface Room {
 
 export interface WSMessage {
   type: string;
-  payload: JoinRoomPayload | AnswerPayload | StartQuizPayload | UserPayload | sendUsersPayload | ErrorPayload | LeaderBoardEntry | QuizUpdatePayload | QuizStartPayload | null;
+  payload: JoinRoomPayload | AnswerPayload | StartQuizPayload | UserPayload | sendUsersPayload | ErrorPayload | LeaderBoardEntry | QuizUpdatePayload | QuizStartPayload | NewUserPayload | null;
 }
 
 export interface ErrorPayload {
@@ -51,6 +51,10 @@ export interface sendUsersPayload {
   users: UserPayload[]
 }
 
+export interface NewUserPayload {
+  user: UserPayload | HostPayload,
+}
+
 export interface QuizUpdatePayload {
   quizId: string,
   message: string,
@@ -77,7 +81,7 @@ export interface ILeaderBoardService {
 }
 
 export interface IRedisService {
-  addUsertoRoom(userId: string, quizId: string): Promise<void>;
+  addUsertoRoom(userId: string, quizId: string, isHost: boolean): Promise<void>;
   getUsersInRoom(quizId: string): Promise<UserPayload[]>;
   checkIfUserInRoom(userId: string, quizId: string): Promise<boolean>;
   removeUserFromRoom(userId: string, quizId: string): Promise<void>;
@@ -115,6 +119,10 @@ export interface UserPayload {
   name: string,
   avatar: string,
   email: string,
+}
+
+export interface HostPayload extends UserPayload {
+  isHost: boolean
 }
 
 export interface LeaderboardPayload {
