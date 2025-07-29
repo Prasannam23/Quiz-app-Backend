@@ -1,11 +1,11 @@
 import { Server as HTTPServer } from 'http';
 import WebSocket from 'ws';
-import { WSMessage, JoinRoomPayload, AnswerPayload, StartQuizPayload } from '../types/types';
-import {
-  removeClient,
-} from './ws.utils';
+import { WSMessage, JoinRoomPayload, AnswerPayload, StartQuizPayload, FetchLeaderboardPayload } from '../types/types';
 import jwt from "jsonwebtoken";
-import { handleAnswer, handleJoinRoom, handleStartQuiz, sendUsers } from './ws.handlers';
+import { handleAnswer,  handleJoinRoom, handleStartQuiz, sendUsers } from './ws.handlers';
+import { handleDisconnect, handleFetchLeaderboard } from './ws.utils';
+
+const SECRET = process.env.JWT_SECRET;
 
 export const startWebSocketServer = (server: HTTPServer) => {
   const wss = new WebSocket.Server({ server });
@@ -14,19 +14,22 @@ export const startWebSocketServer = (server: HTTPServer) => {
     const params = new URLSearchParams(req?.url?.split('/')[1]);
     const token = params.get('token');
     if(!token) return wss.close();
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!);
+    const decoded = jwt.verify(token, SECRET!) as {id: string, role: string};
     if(!decoded) return wss.close();
-    const socketId = crypto.randomUUID();
 
-    console.log('New WebSocket connection:', socketId, server.address());
+    const userId = decoded.id;
+    let quizId: string;
 
-    socket.on('message', async (data) => {
+    console.log('New WebSocket connection:', server.address());
+
+    socket.on('message', async (data: string) => {
       try {
         const message: WSMessage = JSON.parse(data.toString());
 
         switch (message.type) {
           case 'JOIN_ROOM': {
-            await handleJoinRoom(socket, message.payload as JoinRoomPayload, socketId);
+            quizId = (message.payload as JoinRoomPayload).quizId;
+            await handleJoinRoom(socket, message.payload as JoinRoomPayload);
             sendUsers(socket, (message.payload as JoinRoomPayload).quizId);
             break;
           }
@@ -35,11 +38,16 @@ export const startWebSocketServer = (server: HTTPServer) => {
             await handleStartQuiz(socket, message.payload as StartQuizPayload);
             break;
           }
-  // leaderboad live 
   
           case 'ANSWER': {
             const payload = message.payload as AnswerPayload;
             handleAnswer(socket, payload);
+            break;
+          }
+
+          case 'LEADERBOARD': {
+            const payload = message.payload as FetchLeaderboardPayload;
+            await handleFetchLeaderboard(payload.quizId, socket, payload.startRank, payload.count);
             break;
           }
 
@@ -52,8 +60,8 @@ export const startWebSocketServer = (server: HTTPServer) => {
     });
     
     socket.on('close', () => {
-      console.log(' WebSocket disconnected:', socketId);
-      removeClient(socketId);
+      console.log(' WebSocket disconnected:');
+      handleDisconnect(quizId, userId);
     });
   });
 

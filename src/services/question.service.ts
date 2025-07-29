@@ -1,6 +1,7 @@
 import { createClient, RedisClientType } from "redis";
 import { HostPayload, IQuestionService, NewUserPayload, Question, QuizStartPayload, QuizUpdatePayload, score, UserPayload, WSMessage } from "../types/types";
 import { server } from "../app";
+import { finishQuizHost } from "../websocket/ws.utils";
 
 export class QuestionService implements IQuestionService {
     private redisPub: RedisClientType;
@@ -48,19 +49,10 @@ export class QuestionService implements IQuestionService {
         return question;
     }
 
-    async evaluateAnswer(questionId: string, answer: number): Promise<score> {
+    async evaluateAnswer(questionId: string, answer: number): Promise<score | null> {
         const [question, ttl] = await Promise.all([this.getCurrentQuestion(), this.redisPub.ttl(`quiz:${this.quizId}:currentQuestion`)]);
-        if(!question) {
-            return ({
-                score: 0,
-                timetaken: 0
-            } as score);
-        }
-        if(question.id !== questionId) {
-            return ({
-                score: 0,
-                timetaken: (question.timeLimit*60) - ttl,
-            } as score);
+        if(!question || question.id !== questionId) {
+            return null;
         }
         if(question.answerIndex === answer) {
             return ({
@@ -120,8 +112,8 @@ export class QuestionService implements IQuestionService {
         await this.redisSub.subscribe(`quiz:${this.quizId}:newQuestion`, handler1);
     }
 
-    async unsubscribe(): Promise<void> {
-        await this.redisSub.unsubscribe(`quiz:${this.quizId}:currentQuestion`);
+    async unsubscribe(channel: string): Promise<void> {
+        await this.redisSub.unsubscribe(`quiz:${this.quizId}:${channel}`);
     }
 
     async subscibeToExpiry(): Promise<void> {
@@ -130,8 +122,8 @@ export class QuestionService implements IQuestionService {
                 const test = await this.addNewCurrentQuestion();
                 if(!test) {
                     await this.redisSub.unsubscribe("__keyevent@0__:expired");
-                    await this.publishUpdates("QUIZ_END", "This quiz has ended.");
-                    await this.unsubscribe();
+                    await this.unsubscribe("newQuestion");
+                    await finishQuizHost(this.quizId);
                     await this.redisSub.quit();
                 }
             }

@@ -72,10 +72,11 @@ model Attempt {
 
   userId      String
   quizId      String
-  score       Int       
+  score       Decimal       
   startedAt   DateTime?
   completedAt DateTime?
-  roomId      String? 
+  roomId      String?
+  state       State?     @default(yet_to_start) 
   user        User       @relation(fields: [userId], references: [id]) 
   quiz        Quiz       @relation(fields: [quizId], references: [id]) 
 
@@ -93,7 +94,7 @@ model Answer {
   selected     Int       
   isCorrect    Boolean
   timeTaken    Int        
-  marksScored  Int        
+  marksScored  Decimal        
 
   attempt      Attempt    @relation(fields: [attemptId], references: [id]) 
   question     Question   @relation(fields: [questionId], references: [id]) 

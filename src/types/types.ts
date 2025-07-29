@@ -17,7 +17,7 @@ export interface Room {
 
 export interface WSMessage {
   type: string;
-  payload: JoinRoomPayload | AnswerPayload | StartQuizPayload | UserPayload | sendUsersPayload | ErrorPayload | LeaderBoardEntry | QuizUpdatePayload | QuizStartPayload | NewUserPayload | null;
+  payload: JoinRoomPayload | AnswerPayload | StartQuizPayload | UserPayload | sendUsersPayload | ErrorPayload | LeaderBoardEntry | QuizUpdatePayload | QuizStartPayload | NewUserPayload | FetchLeaderboardPayload | null;
 }
 
 export interface ErrorPayload {
@@ -66,6 +66,12 @@ export interface QuizStartPayload {
   attemptId: string | null,
 }
 
+export interface FetchLeaderboardPayload {
+  quizId: string,
+  startRank: number,
+  count: number,
+}
+
 export interface ILeaderBoardService {
   addMember(userId: string, score: number): Promise<void>;
   incrementScore(userId: string, incrementBy: number): Promise<number>;
@@ -81,7 +87,7 @@ export interface ILeaderBoardService {
 }
 
 export interface IRedisService {
-  addUsertoRoom(userId: string, quizId: string, isHost: boolean): Promise<void>;
+  addUsertoRoom(user: UserPayload | HostPayload, quizId: string): Promise<void>;
   getUsersInRoom(quizId: string): Promise<UserPayload[]>;
   checkIfUserInRoom(userId: string, quizId: string): Promise<boolean>;
   removeUserFromRoom(userId: string, quizId: string): Promise<void>;
@@ -93,10 +99,10 @@ export interface IQuestionService {
   getCurrentQuestion(): Promise<Question | null>;
   publishNewQuestion(question: Question): Promise<void>;
   subscribe(handler1:(message: string) => void, handler2:(message: string) => void): Promise<void>;
-  unsubscribe(): Promise<void>;
+  unsubscribe(channel: string): Promise<void>;
   subscibeToExpiry(): Promise<void>;
   publishUpdates(type: string, message: string, attemptId: string | null): Promise<void>;
-  evaluateAnswer(questionId: string, answer: number): Promise<score>;
+  evaluateAnswer(questionId: string, answer: number): Promise<score | null>;
 }
 
 export interface score {
@@ -128,7 +134,7 @@ export interface HostPayload extends UserPayload {
 export interface LeaderboardPayload {
   quizId: string,
   topPlayers: LeaderBoardEntry[],
-  selfScore: SelfScore,
+  selfScore: SelfScore | null,
 }
 
 export interface SelfScore {
