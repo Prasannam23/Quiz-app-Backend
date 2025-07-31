@@ -9,7 +9,7 @@ import {
   WSMessage,
   sendUsersPayload
 } from "../types/types";
-import { addClient, evaluateScoreAndUpdateLeaderboard, getClientByUserId, sendUpdates, startquiz } from "./ws.utils";
+import { addClient, evaluateScoreAndUpdateLeaderboard, getClientByUserId, safeSend, sendUpdates, startquiz } from "./ws.utils";
 import prisma from "../config/db";
 import { redisService } from "../services/redis.service";
 import { server } from "../app";
@@ -69,7 +69,7 @@ export const handleJoinRoom = async (socket: WebSocket, payload: JoinRoomPayload
       });
 
       if(a.length) {
-        socket.send(JSON.stringify({type: "QUIZ_ONGOING", payload: {
+        safeSend(socket, JSON.stringify({type: "QUIZ_ONGOING", payload: {
           message: "Quiz Ongoing following is your attemptId, you will be given the next question shortly.",
           attemptId: a[0].id,
         }}));
@@ -92,7 +92,7 @@ export const handleJoinRoom = async (socket: WebSocket, payload: JoinRoomPayload
           startedAt: new Date(),
         }
       });
-      socket.send(JSON.stringify({type: "QUIZ_ONGOING", payload: {
+      safeSend(socket, JSON.stringify({type: "QUIZ_ONGOING", payload: {
         message: "Quiz Ongoing following is your attemptId, you will be given the next question shortly.",
         attemptId: attempt.id
       }}));
@@ -141,7 +141,7 @@ export const sendUsers = async (socket: WebSocket, roomId: string): Promise<void
     type: "USERS_IN_ROOM",
     payload,
   }
-  socket.send(JSON.stringify(m));
+  safeSend(socket, JSON.stringify(m));
 }
 
 export const handleStartQuiz = async (socket: WebSocket, payload: StartQuizPayload) => {
@@ -158,7 +158,7 @@ export const handleStartQuiz = async (socket: WebSocket, payload: StartQuizPaylo
           message: "Either Quiz not found or or it does not have any questions"
         }
       }
-      socket.send(JSON.stringify(message));
+      safeSend(socket, JSON.stringify(message));
     }
   }, 3000);
 };
@@ -169,14 +169,12 @@ export const handleAnswer = async (socket: WebSocket, payload: AnswerPayload) =>
   const test = await evaluateScoreAndUpdateLeaderboard(userId, quizId, questionId, answer, attemptId);
 
   if(test) {
-    socket.send(
-    JSON.stringify({
+    safeSend(socket, JSON.stringify({
       type: "ANSWER_RECEIVED",
       payload: { status: "ok" },
-    })
-  );
+    }))
   } else {
-    socket.send(JSON.stringify({type: "ERROR", payload:{
+    safeSend(socket, JSON.stringify({type: "ERROR", payload:{
       message: "Something went wrong."
     }}));
   }
