@@ -10,6 +10,18 @@ import { WebSocket } from 'ws';
 
 export const rooms = new Map<string, Room>();
 
+export const safeSend = (ws: WebSocket, message: string) => {
+  if (ws.readyState === ws.OPEN) {
+    try {
+      ws.send(message);
+    } catch (err) {
+      console.error("WebSocket send error:", (err as Error).message);
+    }
+  } else {
+    console.warn("Attempted to send on closed socket");
+  }
+}
+
 export const addClient = async (client: ClientInfo, roomId: string) => {
   if(!rooms.has(roomId)) {
     const questionService = new QuestionService(redisPub as RedisClientType, roomId);
@@ -148,12 +160,12 @@ export const sendAttemptId = async (quizId: string, update: WSMessage) => {
         startedAt,
       },
     })});
-    else val.socket.send(JSON.stringify(update));
+    else safeSend(val.socket, JSON.stringify(update));
   }
   const attempts = await Promise.all(attemptPromises);
   attempts.forEach((attempt) => {
     (update.payload as QuizStartPayload).attemptId = attempt.attempt.id;
-    attempt.socket.send(JSON.stringify(update));
+    safeSend(attempt.socket, JSON.stringify(update));
   })
 }
 
@@ -266,7 +278,7 @@ export const finishQuiz = async (quizId: string) => {
 
 export const handleFetchLeaderboard = async (quizId: string, socket: WebSocket, startRank: number, count: number) => {
   const leaderboard = await rooms.get(quizId)?.leaderboardService.getPlayersInRange(startRank, count);
-  socket.send(JSON.stringify({type: "Leaderboard_In_Range", leaderboard}));
+  safeSend(socket, JSON.stringify({type: "Leaderboard_In_Range", leaderboard}));
 }
 
 export const handleDisconnect = async (quizId: string, userId: string) => {
