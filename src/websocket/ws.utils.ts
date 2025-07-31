@@ -264,6 +264,24 @@ export const finishQuizHost = async (quizId: string) => {
 
   await rooms.get('quizId')?.questionService.publishUpdates("QUIZ_END", "This quiz has ended.");
   await redisClient.del([`quizData:${quizId}`, `quiz:${quizId}`, `leaderboard:${quizId}`]);
+
+  await prisma.quiz.update({
+    where: {
+      id: quizId
+    },
+    data: {
+      state: "completed",
+    },
+  });
+
+  await prisma.attempt.updateMany({
+    where: {
+      quizId,
+    },
+    data: {
+      state: "completed"
+    }
+  });
 }
 
 export const finishQuiz = async (quizId: string) => {
