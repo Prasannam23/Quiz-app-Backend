@@ -85,8 +85,8 @@ export const broadcastLeaderBoardToRoom = async (roomId: string, topPlayers: Lea
     fulfilledArr.forEach(async (value) => {
       const selfScore: SelfScore = {
         userId: value.userId,
-        rank: value.rank || -1,
-        score: value.score || -1,
+        rank: value.rank==null?-1:value.rank+1,
+        score: value.score==null?-1:value.score,
       }
       const payload: LeaderboardPayload = {
         quizId: roomId,
