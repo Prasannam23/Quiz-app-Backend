@@ -67,7 +67,7 @@ export class QuestionService implements IQuestionService {
     }
 
     async publishNewQuestion(question: Question): Promise<void> {
-        await this.redisPub.publish(`quiz:${this.quizId}:newQuestion`, JSON.stringify({id: question.id, question: question.question, options: question.options, timeLimit: question.timeLimit, marks: question.marks}));
+        await this.redisPub.publish(`quiz:${this.quizId}:newQuestion`, JSON.stringify({type: "NEW_QUESTION", payload:{id: question.id, question: question.question, options: question.options, timeLimit: question.timeLimit, marks: question.marks}} as WSMessage));
     }
 
     async publishUpdates(type: string, message: string): Promise<void> {
