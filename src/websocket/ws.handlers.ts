@@ -21,8 +21,6 @@ export const handleJoinRoom = async (socket: WebSocket, payload: JoinRoomPayload
 
     console.log(`👤 User ${payload.userId} joined room ${payload.quizId},`, server.address());
 
-    const existingUser = getClientByUserId(userId);
-
     const existingUserInRedis = await redisService.checkIfUserInRoom(userId, quizId);
     
     const user = await prisma.user.findUnique({
@@ -50,7 +48,7 @@ export const handleJoinRoom = async (socket: WebSocket, payload: JoinRoomPayload
       isHost: quiz?.ownerId==userId,
     };
 
-    if(!existingUser) await addClient(client, quizId);
+    await addClient(client, quizId);
 
     if(!quiz) {
       throw new Error("Quiz not found.");

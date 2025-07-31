@@ -7,7 +7,7 @@ import { AuthUser } from '../types/auth';
 const router = Router();
 
 const COOKIE_OPTIONS: CookieOptions = {
-  httpOnly: true,
+  httpOnly: false,
   secure: process.env.NODE_ENV === 'production',
   sameSite: 'lax',
   maxAge: 7 * 24 * 60 * 60 * 1000, 
